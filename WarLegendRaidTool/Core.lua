@@ -428,7 +428,7 @@ W.On("ADDON_LOADED", function(name)
     if type(WarLegendRaidToolDB) ~= "table" then WarLegendRaidToolDB = {} end
     W.db = WarLegendRaidToolDB
     Migrate(W.db)
-    W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto" })
+    W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto", overlapForce = false })
     -- the language is known from here: everything built from now on uses it
     W.SetLanguage(W.db.ui.lang)
     W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }

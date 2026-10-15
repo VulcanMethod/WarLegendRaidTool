@@ -75,7 +75,7 @@ W.On("PLAYER_REGEN_ENABLED", function() inCombat = false end)
 -- Instant loot (only when auto loot applies, never while fishing)
 local lastLoot = 0
 local function FastLoot()
-    if not db.fastLoot or GetTime() - lastLoot < 0.3 then return end
+    if not W.FeatureOn(db, "fastLoot") or GetTime() - lastLoot < 0.3 then return end
     lastLoot = GetTime()
     if IsFishingLoot and IsFishingLoot() then return end
     local auto = (C_CVar and C_CVar.GetCVarBool or GetCVarBool)("autoLootDefault")
@@ -89,7 +89,7 @@ W.On("LOOT_OPENED", FastLoot)
 local function Money(c) return GetCoinTextureString and GetCoinTextureString(c) or tostring(c) end
 W.On("MERCHANT_SHOW", function()
     if Shift() then return end
-    if db.sellJunk then
+    if W.FeatureOn(db, "sellJunk") then
         local numSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
         local use = (C_Container and C_Container.UseContainerItem) or UseContainerItem
         local count = 0
@@ -108,7 +108,7 @@ W.On("MERCHANT_SHOW", function()
         end
         if count > 0 then W.Print(count .. L(" junk item(s) sold.")) end
     end
-    if db.autoRepair and CanMerchantRepair() then
+    if W.FeatureOn(db, "autoRepair") and CanMerchantRepair() then
         local cost, can = GetRepairAllCost()
         if not can or not cost or cost == 0 then return end
         if db.repairGuild and CanGuildBankRepair and CanGuildBankRepair() then
@@ -124,12 +124,12 @@ end)
 -- Quests: turn in then accept (no reward choice, no grey quests)
 W.On("GOSSIP_SHOW", function()
     if Shift() or not C_GossipInfo then return end
-    if db.questTurnIn and C_GossipInfo.GetActiveQuests then
+    if W.FeatureOn(db, "questTurnIn") and C_GossipInfo.GetActiveQuests then
         for _, q in ipairs(C_GossipInfo.GetActiveQuests() or {}) do
             if q.isComplete and q.questID then C_GossipInfo.SelectActiveQuest(q.questID); return end
         end
     end
-    if db.questAccept and C_GossipInfo.GetAvailableQuests then
+    if W.FeatureOn(db, "questAccept") and C_GossipInfo.GetAvailableQuests then
         for _, q in ipairs(C_GossipInfo.GetAvailableQuests() or {}) do
             if q.questID and not q.isTrivial then C_GossipInfo.SelectAvailableQuest(q.questID); return end
         end
@@ -137,13 +137,13 @@ W.On("GOSSIP_SHOW", function()
 end)
 W.On("QUEST_GREETING", function()
     if Shift() then return end
-    if db.questTurnIn then
+    if W.FeatureOn(db, "questTurnIn") then
         for i = 1, GetNumActiveQuests() do
             local _, done = GetActiveTitle(i)
             if done then SelectActiveQuest(i); return end
         end
     end
-    if db.questAccept then
+    if W.FeatureOn(db, "questAccept") then
         for i = 1, GetNumAvailableQuests() do
             local trivial = GetAvailableQuestInfo and GetAvailableQuestInfo(i)
             if not trivial then SelectAvailableQuest(i); return end
@@ -151,7 +151,7 @@ W.On("QUEST_GREETING", function()
     end
 end)
 W.On("QUEST_DETAIL", function()
-    if not db.questAccept or Shift() then return end
+    if not W.FeatureOn(db, "questAccept") or Shift() then return end
     if QuestGetAutoAccept and QuestGetAutoAccept() and AcknowledgeAutoAcceptQuest then
         AcknowledgeAutoAcceptQuest()
     else
@@ -159,10 +159,10 @@ W.On("QUEST_DETAIL", function()
     end
 end)
 W.On("QUEST_PROGRESS", function()
-    if db.questTurnIn and not Shift() and IsQuestCompletable() then CompleteQuest() end
+    if W.FeatureOn(db, "questTurnIn") and not Shift() and IsQuestCompletable() then CompleteQuest() end
 end)
 W.On("QUEST_COMPLETE", function()
-    if not db.questTurnIn or Shift() then return end
+    if not W.FeatureOn(db, "questTurnIn") or Shift() then return end
     local choices = GetNumQuestChoices()
     if choices > 1 then return end
     GetQuestReward(choices)
@@ -179,10 +179,10 @@ end)
 
 -- Cinematics
 W.On("CINEMATIC_START", function(canCancel)
-    if db.skipCinematics and not Shift() and canCancel ~= false then StopCinematic() end
+    if W.FeatureOn(db, "skipCinematics") and not Shift() and canCancel ~= false then StopCinematic() end
 end)
 W.On("PLAY_MOVIE", function()
-    if not db.skipCinematics or Shift() then return end
+    if not W.FeatureOn(db, "skipCinematics") or Shift() then return end
     W.After(0, function()
         if MovieFrame and MovieFrame:IsShown() then
             if MovieFrame.FinishMovie then MovieFrame:FinishMovie() elseif GameMovieFinished then GameMovieFinished() end
@@ -192,7 +192,7 @@ end)
 
 -- Delete: pre-fills the confirmation word (the player still clicks "Yes")
 W.On("DELETE_ITEM_CONFIRM", function()
-    if not db.deleteConfirm or not DELETE_ITEM_CONFIRM_STRING then return end
+    if not W.FeatureOn(db, "deleteConfirm") or not DELETE_ITEM_CONFIRM_STRING then return end
     W.After(0, function()
         for i = 1, (STATICPOPUP_NUMDIALOGS or 4) do
             local d = _G["StaticPopup" .. i]
@@ -229,6 +229,7 @@ W.RegisterModule("QualityOfLife", L("Quality of Life"), function(p)
         for _, t in ipairs(section[2]) do
             local key = t[1]
             W.Check(p, L(t[2]), function() return db[key] end, function(v) db[key] = v end):SetPoint("TOPLEFT", 12, y)
+            W.OverlapNote(p, key, "TOPLEFT", 340, y - 6)
             y = y - 24
         end
         y = y - 6
@@ -237,4 +238,5 @@ W.RegisterModule("QualityOfLife", L("Quality of Life"), function(p)
         "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, y - 4)
     info:SetTextColor(0.7, 0.7, 0.7)
+    W.Check(p, L("Use it anyway"), W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, y - 34)
 end)

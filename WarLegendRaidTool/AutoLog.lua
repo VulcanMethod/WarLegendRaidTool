@@ -38,6 +38,7 @@ end
 
 local function CheckAutoLog()
     if not db then return end
+    if W.Overlap("autoLog") then return end -- EllesmereUI already logs for you
     WatchTargets()
     if db.owned and not IsLogging() then db.owned = false end -- stopped manually
     if ShouldLog() then
@@ -100,4 +101,6 @@ W.RegisterModule("AutoLog", "AutoLog", function(p)
         .. L("The addon only stops logs it started itself. /wl logdebug to troubleshoot."), "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -100)
     info:SetTextColor(0.7, 0.7, 0.7)
+    W.OverlapNote(p, "autoLog", "TOPLEFT", 16, -150)
+    W.Check(p, L("Use it anyway"), W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, -172)
 end)

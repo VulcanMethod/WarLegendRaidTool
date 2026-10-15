@@ -32,14 +32,14 @@ end
 
 local function ApplyVisibility()
     if not frame then return end
-    local show = db.enabled and (not db.hideOOC or startAt ~= nil or not db.locked)
+    local show = db.enabled and not W.Overlap("combatTimer") and (not db.hideOOC or startAt ~= nil or not db.locked)
     frame:SetShown(show and not W.InPvP())
     frame:EnableMouse(not db.locked)
     frame.bg:SetShown(not db.locked)
 end
 
 local function Start(encounter)
-    if not db.enabled or W.InPvP() then return end
+    if not db.enabled or W.InPvP() or W.Overlap("combatTimer") then return end
     if db.bossOnly and not encounter then return end
     if startAt then
         -- already timing the fight: a boss pull restarts it as a boss timer
@@ -122,4 +122,6 @@ W.RegisterModule("CombatTimer", L("Combat Timer"), function(p)
     local info = W.Label(p, L("Starts on entering combat (or on the boss pull) and stops at the end of the fight."), "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -182)
     info:SetTextColor(0.7, 0.7, 0.7)
+    W.OverlapNote(p, "combatTimer", "TOPLEFT", 16, -210)
+    W.Check(p, L("Use it anyway"), W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, -232)
 end)
