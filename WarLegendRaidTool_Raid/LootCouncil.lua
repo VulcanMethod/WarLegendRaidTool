@@ -1,0 +1,1319 @@
+-- WarLegend RaidTool - Loot Council (RCLootCouncil style, master loot)
+-- The master looter starts a session with the boss items; every raider with the addon answers
+-- (Need / Upgrade / Minor / Offspec / Greed / Pass + note, with their equipped items);
+-- the council votes; the master looter awards (GiveMasterLoot) and everything goes in the loot log.
+-- Also: loot log of every item looted in raid, soft-res (softres.it import + "!sr" whispers).
+local W = WLRT
+W.AddFR({
+    ["Loot Council"] = "Loot Council",
+    ["Need (BiS)"] = "Besoin (BiS)",
+    ["Upgrade"] = "Amélioration",
+    ["Minor upgrade"] = "Petite amélio.",
+    ["Offspec"] = "Spé secondaire",
+    ["Greed"] = "Cupidité",
+    ["Pass"] = "Passer",
+    ["Waiting..."] = "En attente...",
+    ["Timeout"] = "Temps écoulé",
+    ["Autopass"] = "Passe auto",
+    ["No addon"] = "Pas d'addon",
+    ["Session"] = "Session",
+    ["History"] = "Historique",
+    ["Soft-res"] = "Soft-res",
+    ["Settings"] = "Réglages",
+    ["Loot - choose"] = "Loot - choisis",
+    ["Council voting"] = "Vote du conseil",
+    ["Note"] = "Note",
+    ["Name"] = "Nom",
+    ["Rank"] = "Rang",
+    ["Response"] = "Réponse",
+    ["Gear"] = "Équipé",
+    ["Diff"] = "Diff",
+    ["Votes"] = "Votes",
+    ["Vote"] = "Voter",
+    ["Unvote"] = "Retirer",
+    ["Award %s to %s?"] = "Donner %s à %s ?",
+    ["Award"] = "Donner",
+    ["Awarded to "] = "Donné à ",
+    ["End session"] = "Fin de session",
+    ["Open voting window"] = "Ouvrir la fenêtre de vote",
+    ["Test session (your gear)"] = "Session test (ton équipement)",
+    ["Add item"] = "Ajouter l'objet",
+    ["Start session"] = "Lancer la session",
+    ["Clear list"] = "Vider la liste",
+    ["Items for the next session (shift-click an item in the box):"] = "Objets de la prochaine session (shift-clic un objet dans la case) :",
+    ["No session running."] = "Aucune session en cours.",
+    ["Session by %s: %d item(s)."] = "Session de %s : %d objet(s).",
+    ["You must be master looter or raid leader/assist."] = "Il faut être maître du butin ou lead/assist du raid.",
+    ["Loot session started (%d items)."] = "Session de loot lancée (%d objets).",
+    ["Loot session ended."] = "Session de loot terminée.",
+    ["Trade %s to %s (item not in the loot window)."] = "Échange %s à %s (objet absent de la fenêtre de loot).",
+    ["Could not give %s to %s (out of range or not eligible?)."] = "Impossible de donner %s à %s (hors de portée ou pas éligible ?).",
+    ["Autopassed %s (cannot use)."] = "Passé auto %s (inutilisable).",
+    ["Loot: %s -> %s (%s)"] = "Loot : %s -> %s (%s)",
+    ["Boss loot"] = "Loot du boss",
+    ["Start a loot session with these items?"] = "Lancer une session de loot avec ces objets ?",
+    ["Enable the loot council"] = "Activer le loot council",
+    ["Ask to start a session when I open a boss as master looter"] = "Proposer une session quand j'ouvre un boss en maître du butin",
+    ["Announce awards in raid chat"] = "Annoncer les attributions dans le canal raid",
+    ["Autopass items my class cannot use"] = "Passer auto les objets inutilisables par ma classe",
+    ["Minimum quality:"] = "Qualité minimum :",
+    ["Answer time:"] = "Temps de réponse :",
+    ["Council: guild ranks up to"] = "Conseil : rangs de guilde jusqu'à",
+    ["Extra council members (names, comma):"] = "Membres du conseil en plus (noms, virgules) :",
+    ["Loot log: record every item looted in raid"] = "Loot log : enregistrer chaque objet looté en raid",
+    ["Filter:"] = "Filtre :",
+    ["Date"] = "Date",
+    ["Item"] = "Objet",
+    ["Winner"] = "Gagnant",
+    ["Zone"] = "Zone",
+    ["Source"] = "Source",
+    ["Export CSV"] = "Exporter CSV",
+    ["Clear history?"] = "Effacer l'historique ?",
+    ["Clear"] = "Effacer",
+    ["Delete this entry?"] = "Supprimer cette ligne ?",
+    ["Players"] = "Joueurs",
+    ["Import (softres.it CSV)"] = "Importer (CSV softres.it)",
+    ["Paste the softres.it CSV export (or lines \"Name,ItemID\")."] = "Colle l'export CSV de softres.it (ou des lignes \"Nom,IDobjet\").",
+    ["%d soft-res imported."] = "%d soft-res importés.",
+    ["Nothing found to import."] = "Rien à importer.",
+    ["Accept \"!sr [item]\" whispers"] = "Accepter les chuchotements \"!sr [objet]\"",
+    ["Max soft-res per player:"] = "Soft-res max par joueur :",
+    ["Clear all soft-res?"] = "Effacer tous les soft-res ?",
+    ["Announce"] = "Annoncer",
+    ["Soft-res saved: %s (%d/%d)."] = "Soft-res enregistré : %s (%d/%d).",
+    ["You already have %d soft-res: %s"] = "Tu as déjà %d soft-res : %s",
+    ["Your soft-res: %s"] = "Tes soft-res : %s",
+    ["No soft-res. Whisper \"!sr [item link]\"."] = "Aucun soft-res. Chuchote \"!sr [lien de l'objet]\".",
+    ["Unknown item. Whisper \"!sr\" + the item link or ID."] = "Objet inconnu. Chuchote \"!sr\" + le lien ou l'ID de l'objet.",
+    ["%s soft-reserved %s."] = "%s a soft-res %s.",
+    ["Council"] = "Conseil",
+    ["Looted"] = "Looté",
+    ["Close"] = "Fermer",
+    ["Soft-res: "] = "Soft-res : ",
+    ["Council members: "] = "Membres du conseil : ",
+    ["Awards"] = "Attributions",
+})
+local L = W.L
+
+local LC = {}
+W.LootCouncil = LC
+local PREFIX = "WLRT_LC"
+local db
+
+local RESP = {
+    { key = "need", text = L("Need (BiS)"), color = "33ff66" },
+    { key = "up", text = L("Upgrade"), color = "ff9933" },
+    { key = "minor", text = L("Minor upgrade"), color = "ffff55" },
+    { key = "os", text = L("Offspec"), color = "bb77ff" },
+    { key = "greed", text = L("Greed"), color = "9999ff" },
+    { key = "pass", text = L("Pass"), color = "888888" },
+}
+local SPECIAL = {
+    wait = { text = L("Waiting..."), color = "777777", order = 20 },
+    timeout = { text = L("Timeout"), color = "aa5555", order = 30 },
+    autopass = { text = L("Autopass"), color = "666666", order = 40 },
+    noaddon = { text = L("No addon"), color = "555555", order = 50 },
+}
+W.TranslateField(RESP, "text")
+W.TranslateField(SPECIAL, "text")
+local RESP_BY = {}
+for i, r in ipairs(RESP) do r.order = i; RESP_BY[r.key] = r end
+for k, r in pairs(SPECIAL) do r.key = k; RESP_BY[k] = r end
+
+local function RespText(key)
+    local r = RESP_BY[key] or SPECIAL.wait
+    return "|cff" .. r.color .. r.text .. "|r"
+end
+
+W.OnReady(function()
+    db = W.DB("loot", {
+        enabled = true, autoStart = true, announce = true, autopass = true, minQuality = 4,
+        timeout = 60, councilRank = 1, councilExtra = "", logLoot = true,
+        srWhisper = true, srMax = 1,
+    })
+    if type(db.history) ~= "table" then db.history = {} end
+    if type(db.sr) ~= "table" then db.sr = {} end
+    if type(db.pending) ~= "table" then db.pending = {} end
+end)
+
+---------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------
+local function Me() return W.Safe(UnitName("player")) or "?" end
+
+function LC.IsML()
+    local method, partyIdx, raidIdx
+    if C_PartyInfo and C_PartyInfo.GetLootMethod then
+        method, partyIdx, raidIdx = C_PartyInfo.GetLootMethod()
+    elseif GetLootMethod then
+        method, partyIdx, raidIdx = GetLootMethod()
+    end
+    local ML = Enum and Enum.LootMethod and (Enum.LootMethod.Masterlooter or Enum.LootMethod.MasterLooter) or 2
+    if method ~= "master" and method ~= ML then return false end
+    if raidIdx and raidIdx > 0 then return W.UnitIsMe("raid" .. raidIdx) end
+    return partyIdx == 0
+end
+
+function LC.CanRun()
+    return LC.IsML() or not W.InGroup() or W.IsLeader() or (W.InRaid() and W.CanLead())
+end
+
+-- Equipment slots for an equip location
+local SLOTS = {
+    INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_BODY = { 4 },
+    INVTYPE_CHEST = { 5 }, INVTYPE_ROBE = { 5 }, INVTYPE_WAIST = { 6 }, INVTYPE_LEGS = { 7 },
+    INVTYPE_FEET = { 8 }, INVTYPE_WRIST = { 9 }, INVTYPE_HAND = { 10 }, INVTYPE_FINGER = { 11, 12 },
+    INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 }, INVTYPE_WEAPON = { 16, 17 },
+    INVTYPE_2HWEAPON = { 16 }, INVTYPE_WEAPONMAINHAND = { 16 }, INVTYPE_WEAPONOFFHAND = { 17 },
+    INVTYPE_SHIELD = { 17 }, INVTYPE_HOLDABLE = { 17 }, INVTYPE_RANGED = { 18 }, INVTYPE_RANGEDRIGHT = { 18 },
+    INVTYPE_THROWN = { 18 }, INVTYPE_RELIC = { 18 }, INVTYPE_TABARD = { 19 },
+}
+
+local function EquipLoc(str)
+    if not str or type(str) ~= "string" then return nil end
+    local _, _, _, loc = W.GetItemInfoInstant(str)
+    return loc
+end
+
+local function MyGear(str)
+    local loc = EquipLoc(str)
+    if not loc then return nil, nil end
+    local slots = SLOTS[loc] or nil
+    local g = {}
+    if slots then
+        for i, s in ipairs(slots) do g[i] = W.ItemString(GetInventoryItemLink("player", s)) end
+    end
+    return g[1], g[2]
+end
+
+-- What a class can equip (vanilla rules). classID 4 = armor, 2 = weapon.
+local ALL = { WARRIOR = 1, PALADIN = 1, HUNTER = 1, ROGUE = 1, PRIEST = 1, SHAMAN = 1, MAGE = 1, WARLOCK = 1, DRUID = 1 }
+local function Set(s) local t = {}; for c in s:gmatch("%u+") do t[c] = true end; return t end
+local ARMOR = {
+    [1] = ALL, [2] = Set("WARRIOR PALADIN HUNTER ROGUE SHAMAN DRUID"), [3] = Set("WARRIOR PALADIN HUNTER SHAMAN"),
+    [4] = Set("WARRIOR PALADIN"), [6] = Set("WARRIOR PALADIN SHAMAN"), [7] = Set("PALADIN"), [8] = Set("DRUID"), [9] = Set("SHAMAN"),
+}
+local WEAPON = {
+    [0] = Set("WARRIOR PALADIN HUNTER ROGUE SHAMAN"), [1] = Set("WARRIOR PALADIN HUNTER SHAMAN"),
+    [2] = Set("WARRIOR HUNTER ROGUE"), [3] = Set("WARRIOR HUNTER ROGUE"),
+    [4] = Set("WARRIOR PALADIN ROGUE PRIEST SHAMAN DRUID"), [5] = Set("WARRIOR PALADIN SHAMAN DRUID"),
+    [6] = Set("WARRIOR PALADIN HUNTER"), [7] = Set("WARRIOR PALADIN HUNTER ROGUE MAGE WARLOCK"),
+    [8] = Set("WARRIOR PALADIN HUNTER"), [10] = Set("WARRIOR HUNTER PRIEST SHAMAN MAGE WARLOCK DRUID"),
+    [13] = Set("WARRIOR HUNTER ROGUE SHAMAN DRUID"), [15] = Set("WARRIOR HUNTER ROGUE PRIEST SHAMAN MAGE WARLOCK DRUID"),
+    [16] = Set("WARRIOR HUNTER ROGUE"), [18] = Set("WARRIOR HUNTER ROGUE"), [19] = Set("PRIEST MAGE WARLOCK"),
+}
+
+function LC.CanUse(str, class)
+    local _, _, _, loc, _, classID, subID = W.GetItemInfoInstant(str)
+    if not classID then return true end
+    if loc == "INVTYPE_CLOAK" then return true end
+    local t = (classID == 4 and ARMOR[subID]) or (classID == 2 and WEAPON[subID])
+    if not t then return true end
+    return t[class] and true or false
+end
+
+local function Ilvl(str) return str and W.ItemLevel(str) end
+
+local function AvgIlvl()
+    if not GetAverageItemLevel then return 0 end
+    local _, equipped = GetAverageItemLevel()
+    return math.floor((W.Safe(equipped) or 0) + 0.5)
+end
+
+local function ZoneName()
+    local name = GetInstanceInfo and GetInstanceInfo()
+    return name or (GetRealZoneText and GetRealZoneText()) or ""
+end
+
+-- Soft-res
+function LC.SRFor(str)
+    local id = W.ItemID(str)
+    return id and db.sr[id] or nil
+end
+
+local function HasSR(str, name)
+    local list = LC.SRFor(str)
+    if not list then return false end
+    for _, n in ipairs(list) do if n:lower() == name:lower() then return true end end
+    return false
+end
+
+---------------------------------------------------------------------------
+-- Session state (same on every client)
+---------------------------------------------------------------------------
+local S -- { sid, ml, n, timeout, started, items = {}, council = {}, acks = {}, roster = {} }
+local UI = {}
+
+-- Identities: every candidate, council member and voter is keyed by its full identity
+-- (W.UnitKey: "first surname" on Forever, "name-realm" elsewhere); c.name is only for display.
+local function MyKey() return W.UnitKey("player") or "?" end
+
+-- key of a message sender, taken from its unit so it matches the candidate lists
+local function SenderKey(from, full)
+    local u = W.UnitByName(full or from)
+    return u and W.UnitKey(u), u
+end
+
+local function NewCandidates()
+    local list = {}
+    local units = W.GroupUnits()
+    if #units == 0 then units = { "player" } end
+    for _, u in ipairs(units) do
+        local key, name = W.UnitKey(u), W.UnitDisplayName(u)
+        if key and name then
+            local g = W.GuildMember(W.UnitFullName(u))
+            list[key] = { key = key, name = name, class = W.UnitClassToken(u), rank = g and g.rank or "",
+                rankIndex = g and g.rankIndex or 99, resp = "wait", votes = {} }
+        end
+    end
+    return list
+end
+
+local function IsCouncil(key)
+    return S and S.council[key or MyKey()] or false
+end
+
+function LC.Session() return S end
+
+local function Record(entry)
+    table.insert(db.history, 1, entry)
+    while #db.history > 1000 do table.remove(db.history) end
+    if UI.history and UI.history:IsVisible() then LC.RefreshHistory() end
+end
+
+---------------------------------------------------------------------------
+-- Messages
+---------------------------------------------------------------------------
+local function Send(...) W.Queue(PREFIX, W.Pack(...)) end
+
+-- council members as full identities (two players can share a first name)
+local function CouncilList()
+    local set, list = {}, {}
+    local function add(n)
+        n = W.FullName(W.SanitizeName(n or ""))
+        if n and n ~= "" and not set[n:lower()] then set[n:lower()] = true; list[#list + 1] = n end
+    end
+    add(W.UnitFullName("player"))
+    for _, u in ipairs(W.GroupUnits()) do
+        local n = W.UnitFullName(u)
+        local g = n and W.GuildMember(n)
+        if g and g.rankIndex and g.rankIndex <= (db.councilRank or 1) then add(n) end
+    end
+    for _, n in ipairs(W.NameList(db.councilExtra)) do add(n) end
+    return list
+end
+
+local SESSION_MAX = 30 -- the receivers refuse more (MAX_ITEMS): never announce a session they drop
+W.AddFR({ ["Only the first %d items are put in the session."] = "Seuls les %d premiers objets sont mis dans la session." })
+
+function LC.StartSession(items)
+    if not LC.CanRun() then W.Print(L("You must be master looter or raid leader/assist.")); return end
+    if #items == 0 then return end
+    if #items > SESSION_MAX then
+        local kept = {}
+        for i = 1, SESSION_MAX do kept[i] = items[i] end
+        items = kept
+        W.Print(string.format(L("Only the first %d items are put in the session."), SESSION_MAX))
+    end
+    local sid = tostring(time() % 100000) .. math.random(10, 99)
+    Send("S", sid, #items, db.timeout)
+    for i, str in ipairs(items) do Send("I", sid, i, str) end
+    Send("C", sid, table.concat(CouncilList(), ","))
+    W.Print(string.format(L("Loot session started (%d items)."), #items))
+end
+
+function LC.EndSession()
+    if S then Send("E", S.sid) end
+end
+
+local Receive = {}
+
+-- Protocol safety: only the master looter or the group leader / an assistant may start a session,
+-- then only that player (full "Name-Realm" name) drives it. Every value is bounded.
+local MAX_ITEMS, MAX_COUNCIL, MAX_NOTE = 30, 40, 100
+
+local function MasterLooterUnit()
+    local method, partyIdx, raidIdx
+    if C_PartyInfo and C_PartyInfo.GetLootMethod then
+        method, partyIdx, raidIdx = C_PartyInfo.GetLootMethod()
+    elseif GetLootMethod then
+        method, partyIdx, raidIdx = GetLootMethod()
+    end
+    local ML = Enum and Enum.LootMethod and (Enum.LootMethod.Masterlooter or Enum.LootMethod.MasterLooter) or 2
+    if method ~= "master" and method ~= ML then return nil end
+    if raidIdx and raidIdx > 0 then return W.RAID_UNITS[raidIdx] end
+    if partyIdx == 0 then return "player" end
+    return partyIdx and W.PARTY_UNITS[partyIdx]
+end
+
+local function SameName(a, b) return a and b and a:lower() == b:lower() end
+
+local function MayStart(full)
+    if not W.InGroup() then return true end -- alone: our own test session
+    if W.IsGroupLead(full) then return true end
+    local u = MasterLooterUnit()
+    return u and SameName(W.UnitFullName(u), full) or false
+end
+
+local function FromML(full)
+    if not S or not full then return false end
+    if SameName(S.mlFull, full) then return true end
+    -- the two forms can differ (surname / realm in the name or not): compare the group units
+    local a, b = W.UnitByName(S.mlFull), W.UnitByName(full)
+    return W.SameUnit(a, b)
+end
+
+Receive.S = function(t, from, full)
+    if not db.enabled or not MayStart(full) then return end
+    local n = tonumber(t[3]) or 0
+    if n < 1 or n > MAX_ITEMS or not t[2] or #t[2] > 12 then return end
+    local timeout = math.max(10, math.min(300, tonumber(t[4]) or 60))
+    S = { sid = t[2], ml = from, mlFull = full, n = n, timeout = timeout, started = GetTime(),
+        items = {}, council = {}, acks = {}, answered = {} }
+    S.cands = NewCandidates()
+    Send("K", S.sid)
+    -- safety net: if the item list never completes, still mark the silent players after 30 s
+    local sid = S.sid
+    W.After(30, function() if S and S.sid == sid then LC.MarkNoAddon(sid) end end)
+end
+
+-- Players who never answered the "K" do not have the addon. Counted from the moment the item list
+-- is complete (a long list, slowed by the send queue, must not mark everyone "no addon").
+function LC.MarkNoAddon(sid)
+    if not S or S.sid ~= sid or S.marked then return end
+    S.marked = true
+    for _, item in pairs(S.items) do
+        for key, c in pairs(item.cands) do
+            if c.resp == "wait" and not S.acks[key] then c.resp = "noaddon" end
+        end
+    end
+    LC.RefreshVote()
+end
+
+Receive.K = function(t, from, full)
+    if not S or S.sid ~= t[2] then return end
+    local key = SenderKey(from, full)
+    if key then S.acks[key] = true end
+end
+
+local function NewItem(str)
+    local item = { str = str, cands = {} }
+    for key, c in pairs(S.cands) do
+        item.cands[key] = { key = key, name = c.name, class = c.class, rank = c.rank, rankIndex = c.rankIndex, resp = "wait", votes = {} }
+    end
+    return item
+end
+
+Receive.I = function(t, from, full)
+    if not S or S.sid ~= t[2] or not FromML(full) then return end
+    local idx = tonumber(t[3])
+    if not idx or idx < 1 or idx > S.n or idx ~= math.floor(idx) then return end
+    if not t[4] or #t[4] > 120 or not t[4]:match("^item:[%-%d:]+$") then return end
+    S.items[idx] = NewItem(t[4])
+    W.ItemLink(t[4]) -- asks the client to cache it
+    local count = 0
+    for _ in pairs(S.items) do count = count + 1 end
+    if count >= S.n and not S.complete then
+        S.complete = true
+        LC.ShowLootFrame()
+        local sid = S.sid
+        W.After(8, function() LC.MarkNoAddon(sid) end)
+    end
+end
+
+Receive.C = function(t, from, full)
+    if not S or S.sid ~= t[2] or not FromML(full) then return end
+    local count = 0
+    for n in (t[3] or ""):gmatch("[^,]+") do
+        count = count + 1
+        if count > MAX_COUNCIL then break end
+        if #n <= 60 then S.council[W.Key(n)] = true end
+    end
+    S.council[W.Key(S.mlFull)] = true
+    if IsCouncil() then LC.ShowVote() end
+end
+
+local function Cand(t, from, full)
+    if not S or S.sid ~= t[2] then return end
+    local item = S.items[tonumber(t[3]) or 0]
+    if not item then return end
+    local key, u = SenderKey(from, full)
+    if not key then return end -- only members of the group take part
+    local c = item.cands[key]
+    if not c then
+        local g = W.GuildMember(W.UnitFullName(u))
+        c = { key = key, name = W.UnitDisplayName(u) or from, class = W.UnitClassToken(u), rank = g and g.rank or "",
+            rankIndex = g and g.rankIndex or 99, resp = "wait", votes = {} }
+        item.cands[key] = c
+    end
+    return c, item
+end
+
+local function Gear(s) return (s and s ~= "" and #s <= 120 and s:match("^item:[%-%d:]+$")) and s or nil end
+
+Receive.R = function(t, from, full)
+    local c = Cand(t, from, full)
+    if not c then return end
+    c.resp = RESP_BY[t[4]] and t[4] or "pass"
+    c.g1, c.g2 = Gear(t[5]), Gear(t[6])
+    local ilvl = tonumber(t[7])
+    c.ilvl = (ilvl and ilvl >= 0 and ilvl < 1000) and ilvl or nil
+    S.acks[c.key] = true
+    LC.RefreshVote()
+end
+
+Receive.N = function(t, from, full)
+    local c = Cand(t, from, full)
+    if c then c.note = (t[4] or ""):sub(1, MAX_NOTE); LC.RefreshVote() end
+end
+
+-- votes: voter and candidate are full identities (t[4] = the candidate's key)
+Receive.V = function(t, from, full)
+    if not S or S.sid ~= t[2] then return end
+    local voter = SenderKey(from, full)
+    if not voter or not IsCouncil(voter) then return end
+    local item = S.items[tonumber(t[3]) or 0]
+    if not item then return end
+    local target = item.cands[t[4]]
+    if not target then return end
+    if t[5] == "1" then
+        for _, c in pairs(item.cands) do c.votes[voter] = nil end -- one vote per council member and item
+        target.votes[voter] = true
+    else
+        target.votes[voter] = nil
+    end
+    LC.RefreshVote()
+end
+
+Receive.A = function(t, from, full)
+    if not S or S.sid ~= t[2] or not FromML(full) then return end
+    local item = S.items[tonumber(t[3]) or 0]
+    if not item then return end
+    local c = item.cands[t[4]]
+    local winner = c and c.name or W.BaseName(t[4] or "?")
+    item.winner, item.winnerName, item.winResp = t[4], winner, t[5]
+    local votes = 0
+    if c then for _ in pairs(c.votes) do votes = votes + 1 end end
+    Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes })
+    if FromML(W.UnitFullName("player")) and db.announce and W.Channel() then
+        W.Announce(string.format(L("Loot: %s -> %s (%s)"), W.ItemLink(item.str), winner,
+            (RESP_BY[t[5]] and RESP_BY[t[5]].text) or t[5]), W.Channel())
+    end
+    LC.RefreshVote()
+end
+
+Receive.E = function(t, from, full)
+    if not S or S.sid ~= t[2] or not FromML(full) then return end
+    S = nil
+    if UI.loot then UI.loot:Hide() end
+    if UI.vote then UI.vote:Hide() end
+    W.Print(L("Loot session ended."))
+    LC.RefreshSession()
+end
+
+-- loot messages only travel in the group (or come back to me when I am alone)
+local LOOT_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, LOCAL = true }
+W.OnAddon(PREFIX, function(msg, from, channel, full)
+    if not LOOT_CHANNELS[channel] or #msg > 255 then return end
+    local t = W.Unpack(msg)
+    local fn = Receive[t[1]]
+    if fn then fn(t, from, full or W.FullName(from)) end
+end)
+
+---------------------------------------------------------------------------
+-- Answering (loot frame)
+---------------------------------------------------------------------------
+local function Answer(idx, key, note)
+    if not S or S.answered[idx] then return end
+    S.answered[idx] = true
+    local item = S.items[idx]
+    local g1, g2 = MyGear(item.str)
+    Send("R", S.sid, idx, key, g1 or "", g2 or "", AvgIlvl())
+    if note and note ~= "" then Send("N", S.sid, idx, note) end
+end
+
+local ROW_H = 58
+local function LootRow(i)
+    local f = UI.loot
+    local r = f.rows[i]
+    if r then return r end
+    r = CreateFrame("Frame", nil, f)
+    W.Size(r, 560, ROW_H)
+    r.icon = CreateFrame("Button", nil, r)
+    W.Size(r.icon, 36, 36)
+    r.icon:SetPoint("TOPLEFT", 16, -4)
+    r.tex = r.icon:CreateTexture(nil, "ARTWORK")
+    r.tex:SetAllPoints()
+    r.icon:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(r.str); GameTooltip:Show()
+    end)
+    r.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    r.name = W.Label(r, "", "GameFontNormal")
+    r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 8, 0)
+    r.name:SetWidth(300)
+    r.info = W.Label(r, "", "GameFontHighlightSmall")
+    r.info:SetPoint("TOPLEFT", r.name, "BOTTOMLEFT", 0, -2)
+    r.info:SetTextColor(0.7, 0.7, 0.7)
+    r.note = W.EditBox(r, 150, 60)
+    r.note:SetPoint("TOPRIGHT", -18, -4)
+    r.noteLbl = W.Label(r, L("Note"), "GameFontDisableSmall")
+    r.noteLbl:SetPoint("RIGHT", r.note, "LEFT", -6, 0)
+    r.btns = {}
+    for k, resp in ipairs(RESP) do
+        local b = W.Button(r, "|cff" .. resp.color .. resp.text .. "|r", 86, 20, function()
+            Answer(r.idx, resp.key, r.note:GetText())
+            LC.ShowLootFrame()
+        end)
+        b:SetPoint("BOTTOMLEFT", 60 + (k - 1) * 84, 2)
+        W.Size(b, 82, 20)
+        r.btns[k] = b
+    end
+    f.rows[i] = r
+    return r
+end
+
+function LC.ShowLootFrame()
+    if not S then return end
+    if not UI.loot then
+        local f = W.Window("WLRTLootFrame", 580, 120, L("Loot - choose"))
+        f:SetPoint("CENTER", 0, 120)
+        f.rows = {}
+        f.bar = W.TimerBar(f, 12)
+        f.bar:SetPoint("BOTTOMLEFT", 14, 12)
+        f.bar:SetPoint("BOTTOMRIGHT", -14, 12)
+        f:SetScript("OnUpdate", function(self)
+            if not S then self:Hide(); return end
+            local left = S.started + S.timeout - GetTime()
+            if self.max ~= S.timeout then self.max = S.timeout; self.bar:SetMinMaxValues(0, S.timeout) end
+            self.bar:SetValue(math.max(0, left))
+            -- the text only changes once per second: no new string every frame
+            local secs = math.max(0, math.ceil(left))
+            if secs ~= self.secs then self.secs = secs; self.bar.text:SetText(secs .. " s") end
+            if left <= 0 then
+                for idx in pairs(S.items) do if not S.answered[idx] then Answer(idx, "timeout") end end
+                self:Hide()
+            end
+        end)
+        UI.loot = f
+    end
+    local f = UI.loot
+    local myClass = W.UnitClassToken("player")
+    local n = 0
+    for idx = 1, S.n do
+        local item = S.items[idx]
+        if item and not S.answered[idx] then
+            if db.autopass and not LC.CanUse(item.str, myClass) then
+                Answer(idx, "autopass")
+                W.Print(string.format(L("Autopassed %s (cannot use)."), W.ItemLink(item.str)))
+            else
+                n = n + 1
+                local r = LootRow(n)
+                r.idx, r.str = idx, item.str
+                r.tex:SetTexture(W.ItemIcon(item.str))
+                r.name:SetText(W.ItemLink(item.str))
+                local lvl = Ilvl(item.str)
+                local sr = HasSR(item.str, Me()) and "  |cff00ccffSR|r" or ""
+                r.info:SetText((lvl and ("ilvl " .. lvl .. "  ") or "") .. (_G[EquipLoc(item.str) or ""] or "") .. sr)
+                r.note:SetText("")
+                r:ClearAllPoints()
+                r:SetPoint("TOPLEFT", 0, -32 - (n - 1) * ROW_H)
+                r:Show()
+            end
+        end
+    end
+    for i = n + 1, #f.rows do f.rows[i]:Hide() end
+    if n == 0 then f:Hide(); return end
+    f:SetHeight(36 + n * ROW_H + 34)
+    f:Show()
+end
+
+---------------------------------------------------------------------------
+-- Council voting window
+---------------------------------------------------------------------------
+local VCOLS = { { L("Name"), 110 }, { L("Rank"), 80 }, { L("Response"), 110 }, { "ilvl", 40, "CENTER" },
+    { L("Gear"), 60 }, { L("Diff"), 40, "CENTER" }, { L("Votes"), 44, "CENTER" }, { L("Note"), 150 } }
+W.TranslateField(VCOLS, 1)
+local VROW = 22
+
+local function SortedCands(item)
+    local list = {}
+    for _, c in pairs(item.cands) do list[#list + 1] = c end
+    local function votes(c) local n = 0; for _ in pairs(c.votes) do n = n + 1 end; return n end
+    table.sort(list, function(a, b)
+        local oa, ob = (RESP_BY[a.resp] or SPECIAL.wait).order, (RESP_BY[b.resp] or SPECIAL.wait).order
+        if oa ~= ob then return oa < ob end
+        local va, vb = votes(a), votes(b)
+        if va ~= vb then return va > vb end
+        return a.name < b.name
+    end)
+    return list, votes
+end
+
+local function GearIcon(parent)
+    local b = CreateFrame("Button", nil, parent)
+    W.Size(b, 18, 18)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    b:SetScript("OnEnter", function(self)
+        if self.str then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(self.str); GameTooltip:Show() end
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+end
+
+local function VoteRow(content)
+    local r = CreateFrame("Button", nil, content)
+    local hl = r:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    W.SetColor(hl, 1, 1, 1, 0.07)
+    r.cells = {}
+    local x = 4
+    for k, c in ipairs(VCOLS) do
+        if k ~= 5 then
+            local fs = W.Label(r, "", "GameFontHighlightSmall")
+            fs:SetPoint("LEFT", x, 0)
+            fs:SetWidth(c[2] - 2)
+            fs:SetJustifyH(c[3] or "LEFT")
+            fs:SetWordWrap(false)
+            r.cells[k] = fs
+        else
+            r.g1 = GearIcon(r); r.g1:SetPoint("LEFT", x, 0)
+            r.g2 = GearIcon(r); r.g2:SetPoint("LEFT", x + 22, 0)
+        end
+        x = x + c[2]
+    end
+    r.vote = W.Button(r, L("Vote"), 60, 18, function()
+        if not S or not r.cand then return end
+        local mine = r.cand.votes[MyKey()]
+        Send("V", S.sid, UI.vote.sel, r.cand.key, mine and "0" or "1")
+    end)
+    r.vote:SetPoint("LEFT", x + 4, 0)
+    r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    r:SetScript("OnClick", function(self) if self.cand then LC.AskAward(UI.vote.sel, self.cand.key) end end)
+    r:SetScript("OnEnter", function(self)
+        local c = self.cand
+        if not c then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(c.name, W.ClassColor(c.class))
+        if c.note then GameTooltip:AddLine(c.note, 1, 1, 1, true) end
+        local voters = {}
+        for v in pairs(c.votes) do voters[#voters + 1] = v end
+        if #voters > 0 then GameTooltip:AddLine(L("Votes") .. ": " .. table.concat(voters, ", "), 0.7, 0.7, 0.7, true) end
+        GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return r
+end
+
+local function BuildVote()
+    local f = W.Window("WLRTVoteFrame", 760, 470, L("Council voting"))
+    f:SetPoint("CENTER", 0, 40)
+    tinsert(UISpecialFrames, "WLRTVoteFrame")
+    f.sel = 1
+    f.tabs = {}
+    f.icon = f:CreateTexture(nil, "ARTWORK")
+    W.Size(f.icon, 40, 40)
+    f.icon:SetPoint("TOPLEFT", 14, -78)
+    f.name = W.Label(f, "", "GameFontNormalLarge")
+    f.name:SetPoint("TOPLEFT", f.icon, "TOPRIGHT", 10, -2)
+    f.info = W.Label(f, "", "GameFontHighlightSmall")
+    f.info:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -4)
+    f.info:SetTextColor(0.75, 0.75, 0.75)
+    local x = 14
+    for _, c in ipairs(VCOLS) do
+        local h = W.Label(f, c[1], "GameFontNormalSmall")
+        h:SetPoint("TOPLEFT", x, -128)
+        h:SetTextColor(0.85, 0.85, 0.85)
+        x = x + c[2]
+    end
+    f.list = W.ScrollList(f, 720, 280, VROW, VoteRow)
+    f.list.sf:SetPoint("TOPLEFT", 10, -144)
+    f.status = W.Label(f, "", "GameFontHighlightSmall")
+    f.status:SetPoint("BOTTOMLEFT", 14, 16)
+    f.endBtn = W.Button(f, L("End session"), 120, 22, function() LC.EndSession() end)
+    f.endBtn:SetPoint("BOTTOMRIGHT", -14, 10)
+    UI.vote = f
+end
+
+local function ItemTab(i)
+    local f = UI.vote
+    local b = f.tabs[i]
+    if b then return b end
+    b = CreateFrame("Button", nil, f, W.BT)
+    W.Size(b, 36, 36)
+    W.Backdrop(b, 1, true)
+    b:SetPoint("TOPLEFT", 14 + (i - 1) * 40, -34)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetPoint("TOPLEFT", 2, -2)
+    b.tex:SetPoint("BOTTOMRIGHT", -2, 2)
+    b.done = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.done:SetPoint("BOTTOMRIGHT", -1, 1)
+    b:SetScript("OnClick", function() f.sel = i; LC.RefreshVote() end)
+    b:SetScript("OnEnter", function(self)
+        if self.str then GameTooltip:SetOwner(self, "ANCHOR_BOTTOM"); GameTooltip:SetHyperlink(self.str); GameTooltip:Show() end
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.tabs[i] = b
+    return b
+end
+
+function LC.ShowVote()
+    if not S then W.Print(L("No session running.")); return end
+    if not UI.vote then BuildVote() end
+    UI.vote:Show()
+    LC.RefreshVote()
+end
+
+function LC.RefreshVote()
+    LC.RefreshSession()
+    local f = UI.vote
+    if not f or not f:IsShown() then return end
+    if not S then f:Hide(); return end
+    for i = 1, S.n do
+        local item = S.items[i]
+        local b = ItemTab(i)
+        b.str = item and item.str
+        b.tex:SetTexture(item and W.ItemIcon(item.str) or 134400)
+        b.done:SetText(item and item.winner and "|cff33ff66v|r" or "")
+        W.SetSelected(b, i == f.sel)
+        b:Show()
+    end
+    for i = S.n + 1, #f.tabs do f.tabs[i]:Hide() end
+    local item = S.items[f.sel]
+    if not item then f.list:Finish(0); return end
+    f.icon:SetTexture(W.ItemIcon(item.str))
+    f.name:SetText(W.ItemLink(item.str))
+    local lvl = Ilvl(item.str)
+    local sr = LC.SRFor(item.str)
+    f.info:SetText((lvl and ("ilvl " .. lvl .. "   ") or "") .. (_G[EquipLoc(item.str) or ""] or "")
+        .. (item.winner and ("   |cff33ff66" .. L("Awarded to ") .. (item.winnerName or item.winner) .. "|r") or "")
+        .. (sr and ("   |cff00ccff" .. L("Soft-res: ") .. table.concat(sr, ", ") .. "|r") or ""))
+    local list, votes = SortedCands(item)
+    local council = IsCouncil()
+    for i, c in ipairs(list) do
+        local r = f.list:Row(i)
+        r.cand = c
+        local tag = HasSR(item.str, W.BaseName(c.name)) and " |cff00ccffSR|r" or ""
+        r.cells[1]:SetText(W.ColorName(c.name, c.class) .. tag)
+        r.cells[2]:SetText(c.rank or "")
+        r.cells[3]:SetText(RespText(c.resp))
+        r.cells[4]:SetText(c.ilvl and c.ilvl > 0 and c.ilvl or "")
+        local diff
+        local e1, e2 = Ilvl(c.g1), Ilvl(c.g2)
+        local cur = (e1 and e2) and math.min(e1, e2) or e1 or e2
+        if lvl and cur then diff = lvl - cur end
+        r.cells[6]:SetText(diff and ((diff > 0 and "|cff33ff66+" or (diff < 0 and "|cffff5555" or "|cffaaaaaa")) .. diff .. "|r") or "")
+        local nv = votes(c)
+        r.cells[7]:SetText(nv > 0 and ("|cffffcc33" .. nv .. "|r") or "0")
+        r.cells[8]:SetText(c.note or "")
+        r.g1.str, r.g2.str = c.g1, c.g2
+        r.g1.tex:SetTexture(c.g1 and W.ItemIcon(c.g1) or nil); r.g1:SetShown(c.g1 ~= nil)
+        r.g2.tex:SetTexture(c.g2 and W.ItemIcon(c.g2) or nil); r.g2:SetShown(c.g2 ~= nil)
+        r.vote:SetShown(council)
+        r.vote:SetText(c.votes[MyKey()] and L("Unvote") or L("Vote"))
+    end
+    f.list:Finish(#list)
+    local isML = FromML(W.UnitFullName("player"))
+    f.endBtn:SetShown(isML)
+    local answered, total = 0, 0
+    for _, c in pairs(item.cands) do
+        total = total + 1
+        if c.resp ~= "wait" then answered = answered + 1 end
+    end
+    f.status:SetText(string.format(L("Session by %s: %d item(s)."), S.ml, S.n) .. "   " .. answered .. "/" .. total
+        .. (isML and ("   |cff888888" .. L("Award") .. ": clic|r") or ""))
+end
+
+---------------------------------------------------------------------------
+-- Award (master looter)
+---------------------------------------------------------------------------
+-- a master loot candidate ("Name", "Name-Realm" or Forever "First Surname") is this character?
+local function IsCandidate(cand, key, display)
+    cand = W.Safe(cand)
+    if not cand then return false end
+    if W.Key(cand) == key then return true end
+    -- one side without its surname / realm: the short names must match
+    return (not W.HasFullPart(cand) or not W.HasFullPart(key))
+        and W.BaseName(cand):lower() == W.BaseName(display or key):lower()
+end
+
+local function GiveLoot(str, key, display)
+    if not (GetNumLootItems and GiveMasterLoot and GetMasterLootCandidate) then return false, false end
+    for slot = 1, GetNumLootItems() do
+        if W.ItemString(GetLootSlotLink(slot)) == str then
+            for i = 1, 40 do
+                if IsCandidate(GetMasterLootCandidate(slot, i), key, display) then
+                    GiveMasterLoot(slot, i)
+                    return true, true
+                end
+            end
+            return false, true -- in the window but this player cannot receive it
+        end
+    end
+    return false, false
+end
+
+-- key = the candidate's full identity (W.UnitKey)
+function LC.AskAward(idx, key)
+    if not S or not FromML(W.UnitFullName("player")) then return end
+    local item = S.items[idx]
+    if not item then return end
+    local c = item.cands[key]
+    local name = c and c.name or W.BaseName(key)
+    W.Confirm(string.format(L("Award %s to %s?"), W.ItemLink(item.str), name), function()
+        local given, found = GiveLoot(item.str, key, name)
+        if not given then
+            if found then
+                W.Print(string.format(L("Could not give %s to %s (out of range or not eligible?)."), W.ItemLink(item.str), name))
+            elseif key ~= MyKey() then
+                W.Print(string.format(L("Trade %s to %s (item not in the loot window)."), W.ItemLink(item.str), name))
+            end
+        end
+        Send("A", S.sid, idx, key, c and c.resp or "")
+        -- next item without a winner
+        for i = 1, S.n do
+            if S.items[i] and not S.items[i].winner and i ~= idx then UI.vote.sel = i; break end
+        end
+    end, L("Award"))
+end
+
+---------------------------------------------------------------------------
+-- Master looter: items of the opened corpse
+---------------------------------------------------------------------------
+local seenLoot, seenCount = {}, 0
+local SEEN_MAX = 500 -- a night of raiding is far below this; the table never grows without limit
+local function CorpseItems()
+    local items = {}
+    if not GetNumLootItems then return items end
+    if seenCount > SEEN_MAX then wipe(seenLoot); seenCount = 0 end
+    for slot = 1, GetNumLootItems() do
+        local link = GetLootSlotLink(slot)
+        local str = W.ItemString(link)
+        if str then
+            local q = W.ItemQuality(link) or 0
+            local guid = GetLootSourceInfo and GetLootSourceInfo(slot) or ""
+            local key = tostring(W.Safe(guid) or "") .. str .. slot
+            if q >= (db.minQuality or 4) and not seenLoot[key] then
+                seenLoot[key] = true
+                seenCount = seenCount + 1
+                items[#items + 1] = str
+            end
+        end
+    end
+    return items
+end
+
+W.On("LOOT_OPENED", function()
+    if not db or not db.enabled or not db.autoStart or not W.InRaid() or not LC.IsML() then return end
+    local items = CorpseItems()
+    if #items == 0 then return end
+    local lines = {}
+    for _, str in ipairs(items) do
+        local sr = LC.SRFor(str)
+        lines[#lines + 1] = W.ItemLink(str) .. (sr and ("  |cff00ccffSR: " .. table.concat(sr, ", ") .. "|r") or "")
+        if sr then W.Print(L("Soft-res: ") .. W.ItemLink(str) .. " -> " .. table.concat(sr, ", ")) end
+    end
+    W.Confirm(L("Start a loot session with these items?") .. "\n\n" .. table.concat(lines, "\n"), function()
+        LC.StartSession(items)
+    end, L("Start session"))
+end)
+
+---------------------------------------------------------------------------
+-- Loot log: every item looted in raid (CHAT_MSG_LOOT)
+---------------------------------------------------------------------------
+local function Pattern(fmt)
+    if not fmt then return nil end
+    local p = fmt:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
+    p = p:gsub("%%%%s", "(.+)"):gsub("%%%%d", "(%%d+)")
+    return "^" .. p
+end
+local PAT_OTHER = { Pattern(LOOT_ITEM_MULTIPLE), Pattern(LOOT_ITEM) }
+local PAT_SELF = { Pattern(LOOT_ITEM_SELF_MULTIPLE), Pattern(LOOT_ITEM_SELF) }
+
+local lootEv = W.On("CHAT_MSG_LOOT", function(msg)
+    if not db or not db.logLoot or not W.InRaid() or not msg then return end
+    msg = W.Safe(msg)
+    if not msg then return end
+    local who, link
+    for _, p in ipairs(PAT_OTHER) do
+        local a, b = msg:match(p)
+        if a and b then who, link = a, b; break end
+    end
+    if not who then
+        for _, p in ipairs(PAT_SELF) do
+            local a = msg:match(p)
+            if a then who, link = Me(), a; break end
+        end
+    end
+    local str = W.ItemString(link)
+    if not who or not str then return end
+    if (W.ItemQuality(link) or 0) < (db.minQuality or 4) then return end
+    who = W.BaseName(who)
+    -- already recorded by a council award?
+    for i = 1, math.min(10, #db.history) do
+        local h = db.history[i]
+        if h.item == str and h.winner == who and time() - h.t < 300 then return end
+    end
+    local _, class = W.UnitByName(who)
+    Record({ t = time(), item = str, winner = who, class = class, resp = "", zone = ZoneName(), src = "loot" })
+end, nil, true) -- on in a raid with the loot log enabled (LC.Watch)
+
+---------------------------------------------------------------------------
+-- Soft-res: "!sr [item]" whispers + softres.it import
+---------------------------------------------------------------------------
+local function PlayerSR(name)
+    local out = {}
+    for id, list in pairs(db.sr) do
+        for _, n in ipairs(list) do if n:lower() == name:lower() then out[#out + 1] = id end end
+    end
+    return out
+end
+
+local function ItemText(id) return W.ItemLink("item:" .. id) end
+
+-- caps: the saved soft-res list cannot grow without limit (whispers, imports)
+local SR_MAX_ITEMS, SR_MAX_NAMES = 300, 40
+function LC.AddSR(name, id)
+    if not db.sr[id] then
+        local count = 0
+        for _ in pairs(db.sr) do count = count + 1 end
+        if count >= SR_MAX_ITEMS then return false end
+        db.sr[id] = {}
+    end
+    if #db.sr[id] >= SR_MAX_NAMES then return false end
+    for _, n in ipairs(db.sr[id]) do if n:lower() == name:lower() then return false end end
+    table.insert(db.sr[id], name)
+    return true
+end
+
+local function Reply(to, text)
+    W.SendChat(W.TAG:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. text, "WHISPER", to)
+end
+
+local srEv = W.On("CHAT_MSG_WHISPER", function(text, sender)
+    if not db or not db.srWhisper then return end
+    text, sender = W.Safe(text), W.Safe(sender)
+    if not text or not sender or not text:lower():match("^!sr") then return end
+    -- only my group and my guild can soft-reserve; answers go to the full "Name-Realm"
+    if not (W.UnitByName(W.FullName(sender)) or W.GuildMember(sender)) then return end
+    local name = W.BaseName(sender)
+    local rest = text:gsub("^!%a+%s*", "")
+    local mine = PlayerSR(name)
+    local function list()
+        local t = {}
+        for _, id in ipairs(mine) do t[#t + 1] = ItemText(id) end
+        return table.concat(t, ", ")
+    end
+    if rest == "" then
+        Reply(sender, #mine > 0 and string.format(L("Your soft-res: %s"), list()) or L("No soft-res. Whisper \"!sr [item link]\"."))
+        return
+    end
+    local id = W.ParseItem(rest)
+    if not id then Reply(sender, L("Unknown item. Whisper \"!sr\" + the item link or ID.")); return end
+    if #mine >= (db.srMax or 1) then
+        Reply(sender, string.format(L("You already have %d soft-res: %s"), #mine, list()))
+        return
+    end
+    if not LC.AddSR(name, id) then return end
+    Reply(sender, string.format(L("Soft-res saved: %s (%d/%d)."), ItemText(id), #mine + 1, db.srMax or 1))
+    W.Print(string.format(L("%s soft-reserved %s."), name, ItemText(id)))
+    LC.RefreshSR()
+end, nil, true) -- on when "!sr" whispers are accepted (LC.Watch)
+
+-- loot messages and "!sr" whispers are only listened to when they are used
+function LC.Watch()
+    W.Activate(lootEv, db and db.logLoot and W.InRaid())
+    W.Activate(srEv, db and db.srWhisper)
+end
+W.OnRoster(LC.Watch)
+W.OnReady(LC.Watch)
+
+local function CSVSplit(line)
+    local out, field, inq = {}, "", false
+    for ch in line:gmatch(".") do
+        if ch == '"' then inq = not inq
+        elseif ch == "," and not inq then out[#out + 1] = field; field = ""
+        else field = field .. ch end
+    end
+    out[#out + 1] = field
+    for i, v in ipairs(out) do out[i] = v:gsub("^%s+", ""):gsub("%s+$", "") end
+    return out
+end
+
+function LC.ImportSR(text)
+    local count, idCol, nameCol = 0, nil, nil
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local f = CSVSplit(line)
+        if not idCol then
+            for i, v in ipairs(f) do
+                local low = v:lower()
+                if low == "itemid" then idCol = i elseif low == "name" then nameCol = i end
+            end
+            if idCol and nameCol then f = nil end -- header line
+        end
+        if f then
+            local id, name
+            if idCol and nameCol then
+                id, name = tonumber(f[idCol]), f[nameCol]
+            else
+                for _, v in ipairs(f) do
+                    if tonumber(v) then id = id or tonumber(v) elseif v ~= "" then name = name or v end
+                end
+            end
+            name = name and W.BaseName(W.SanitizeName(name))
+            if id and name and name ~= "" and LC.AddSR(name, id) then count = count + 1 end
+        end
+    end
+    return count
+end
+
+---------------------------------------------------------------------------
+-- Module panel: Session / History / Soft-res / Settings
+---------------------------------------------------------------------------
+local function QualityName(q)
+    local c = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+    local name = _G["ITEM_QUALITY" .. q .. "_DESC"] or tostring(q)
+    return c and (c.hex or "|cffffffff") .. name .. "|r" or name
+end
+
+function LC.RefreshSession()
+    local p = UI.session
+    if not p or not p:IsVisible() then return end
+    local lines = {}
+    if S then
+        lines[1] = "|cffffffff" .. string.format(L("Session by %s: %d item(s)."), S.ml, S.n) .. "|r"
+        for i = 1, S.n do
+            local item = S.items[i]
+            if item then
+                lines[#lines + 1] = "  " .. W.ItemLink(item.str) .. (item.winner and ("  |cff33ff66-> " .. (item.winnerName or item.winner) .. "|r") or "")
+            end
+        end
+        local council = {}
+        for n in pairs(S.council) do council[#council + 1] = n end
+        table.sort(council)
+        lines[#lines + 1] = "|cff888888" .. L("Council members: ") .. table.concat(council, ", ") .. "|r"
+    else
+        lines[1] = "|cff999999" .. L("No session running.") .. "|r"
+    end
+    p.status:SetText(table.concat(lines, "\n"))
+    local pend = {}
+    for _, str in ipairs(db.pending) do pend[#pend + 1] = "  " .. W.ItemLink(str) end
+    p.pending:SetText(table.concat(pend, "\n"))
+end
+
+local function BuildSession(p)
+    UI.session = p
+    p.status = W.Label(p, "", "GameFontHighlightSmall")
+    p.status:SetPoint("TOPLEFT", 14, -6)
+    p.status:SetWidth(520)
+    p.status:SetJustifyV("TOP")
+    W.Button(p, L("Open voting window"), 170, 22, LC.ShowVote):SetPoint("TOPRIGHT", -16, -4)
+    W.Button(p, L("End session"), 170, 22, LC.EndSession):SetPoint("TOPRIGHT", -16, -30)
+    W.Button(p, L("Test session (your gear)"), 170, 22, function() LC.Test() end):SetPoint("TOPRIGHT", -16, -56)
+    local lbl = W.Label(p, L("Items for the next session (shift-click an item in the box):"), "GameFontNormalSmall")
+    lbl:SetPoint("TOPLEFT", 14, -250)
+    local box = W.EditBox(p, 260, 255)
+    box:SetPoint("TOPLEFT", 18, -270)
+    W.LinkTarget(box)
+    local function add()
+        local id = W.ParseItem(box:GetText())
+        local str = W.ItemString(box:GetText()) or (id and ("item:" .. id))
+        if str then table.insert(db.pending, str); box:SetText(""); LC.RefreshSession() end
+    end
+    box:SetScript("OnEnterPressed", add)
+    W.Button(p, L("Add item"), 110, 22, add):SetPoint("LEFT", box, "RIGHT", 8, 0)
+    W.Button(p, L("Start session"), 120, 22, function()
+        if #db.pending == 0 then return end
+        LC.StartSession(db.pending)
+        db.pending = {}
+        LC.RefreshSession()
+    end):SetPoint("LEFT", box, "RIGHT", 124, 0)
+    W.Button(p, L("Clear list"), 100, 22, function() db.pending = {}; LC.RefreshSession() end)
+        :SetPoint("LEFT", box, "RIGHT", 250, 0)
+    p.pending = W.Label(p, "", "GameFontHighlightSmall")
+    p.pending:SetPoint("TOPLEFT", 14, -298)
+    p.pending:SetWidth(600)
+    p:SetScript("OnShow", LC.RefreshSession)
+end
+
+-- History / loot log
+local function HistoryRows()
+    local filter = UI.filter and UI.filter:GetText():lower() or ""
+    local rows = {}
+    for i, h in ipairs(db.history) do
+        local link = W.ItemLink(h.item)
+        local text = (h.winner .. " " .. link .. " " .. (h.zone or "")):lower()
+        if filter == "" or text:find(filter, 1, true) then
+            rows[#rows + 1] = { index = i, cells = {
+                date("%d/%m %H:%M", h.t), link, W.ColorName(h.winner, h.class),
+                h.resp ~= "" and RespText(h.resp) or "-", h.zone or "", h.src == "council" and L("Council") or L("Looted") } }
+        end
+    end
+    return rows
+end
+
+function LC.RefreshHistory()
+    if UI.history then UI.history:SetData(HistoryRows()) end
+end
+
+local function BuildHistory(p)
+    local lbl = W.Label(p, L("Filter:"), "GameFontNormalSmall")
+    lbl:SetPoint("TOPLEFT", 14, -8)
+    UI.filter = W.EditBox(p, 180, 40)
+    UI.filter:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
+    UI.filter:SetScript("OnTextChanged", LC.RefreshHistory)
+    W.Button(p, L("Export CSV"), 110, 22, function()
+        local out = { "date,item,itemID,winner,response,zone,source" }
+        for _, h in ipairs(db.history) do
+            local name = W.GetItemInfo(h.item) or ""
+            out[#out + 1] = W.CSV(date("%Y-%m-%d %H:%M", h.t), name, W.ItemID(h.item) or "",
+                h.winner, h.resp or "", h.zone or "", h.src or "")
+        end
+        W.TextPopup(L("History"), table.concat(out, "\n"), { hint = "Ctrl+C" })
+    end):SetPoint("TOPRIGHT", -130, -6)
+    W.Button(p, L("Clear"), 100, 22, function()
+        W.Confirm(L("Clear history?"), function() wipe(db.history); LC.RefreshHistory() end)
+    end):SetPoint("TOPRIGHT", -16, -6)
+    UI.history = W.Table(p, { { L("Date"), 80 }, { L("Item"), 230 }, { L("Winner"), 110 }, { L("Response"), 110 },
+        { L("Zone"), 130 }, { L("Source"), 70 } }, 470)
+    UI.history:SetPoint("TOPLEFT", 10, -38)
+    UI.history.onEnter = function(d, row)
+        local h = db.history[d.index]
+        if h then GameTooltip:SetOwner(row, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(h.item); GameTooltip:Show() end
+    end
+    UI.history.onClick = function(d, btn)
+        if btn == "RightButton" then
+            W.Confirm(L("Delete this entry?"), function() table.remove(db.history, d.index); LC.RefreshHistory() end)
+        end
+    end
+    p:SetScript("OnShow", LC.RefreshHistory)
+end
+
+-- Soft-res tab
+function LC.RefreshSR()
+    if not UI.sr or not UI.sr:IsVisible() then return end
+    local rows = {}
+    for id, list in pairs(db.sr) do
+        if #list > 0 then rows[#rows + 1] = { id = id, cells = { ItemText(id), table.concat(list, ", ") } } end
+    end
+    table.sort(rows, function(a, b) return a.id < b.id end)
+    UI.sr:SetData(rows)
+end
+
+local function BuildSR(p)
+    W.Button(p, L("Import (softres.it CSV)"), 170, 22, function()
+        W.TextPopup(L("Soft-res"), "", {
+            hint = L("Paste the softres.it CSV export (or lines \"Name,ItemID\")."),
+            confirmText = L("Import"),
+            onConfirm = function(text)
+                local n = LC.ImportSR(text)
+                if n == 0 then return L("Nothing found to import.") end
+                W.Print(string.format(L("%d soft-res imported."), n))
+                LC.RefreshSR()
+            end,
+        })
+    end):SetPoint("TOPLEFT", 14, -6)
+    W.Button(p, L("Announce"), 100, 22, function()
+        local ch = W.Channel()
+        if not ch then W.Print(L("You are not in a group.")); return end
+        for id, list in pairs(db.sr) do
+            if #list > 0 then W.Announce("SR " .. ItemText(id) .. ": " .. table.concat(list, ", "), ch) end
+        end
+    end):SetPoint("TOPLEFT", 190, -6)
+    W.Button(p, L("Clear"), 90, 22, function()
+        W.Confirm(L("Clear all soft-res?"), function() wipe(db.sr); LC.RefreshSR() end)
+    end):SetPoint("TOPLEFT", 296, -6)
+    W.Check(p, L("Accept \"!sr [item]\" whispers"), function() return db.srWhisper end, function(v) db.srWhisper = v; LC.Watch() end)
+        :SetPoint("TOPLEFT", 400, -5)
+    local lbl = W.Label(p, L("Max soft-res per player:"), "GameFontHighlightSmall")
+    lbl:SetPoint("TOPLEFT", 16, -40)
+    W.Cycle(p, 40, { { 1, "1" }, { 2, "2" }, { 3, "3" } }, function() return db.srMax end, function(v) db.srMax = v end)
+        :SetPoint("LEFT", lbl, "RIGHT", 8, 0)
+    UI.sr = W.Table(p, { { L("Item"), 280 }, { L("Players"), 380 } }, 430)
+    UI.sr:SetPoint("TOPLEFT", 10, -66)
+    UI.sr.onEnter = function(d, row)
+        GameTooltip:SetOwner(row, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink("item:" .. d.id); GameTooltip:Show()
+    end
+    UI.sr.onClick = function(d, btn)
+        if btn == "RightButton" then
+            W.Confirm(L("Delete this entry?"), function() db.sr[d.id] = nil; LC.RefreshSR() end)
+        end
+    end
+    p:SetScript("OnShow", LC.RefreshSR)
+end
+
+local function RankValues()
+    local vals = {}
+    local n = GuildControlGetNumRanks and GuildControlGetNumRanks() or 0
+    for i = 1, n do vals[#vals + 1] = { i - 1, (GuildControlGetRankName(i) or ("#" .. i)) } end
+    if #vals == 0 then for i = 0, 9 do vals[#vals + 1] = { i, "#" .. i } end end
+    return vals
+end
+
+local function BuildSettings(p)
+    local y = -6
+    local function check(text, key)
+        W.Check(p, text, function() return db[key] end, function(v) db[key] = v; LC.Watch() end):SetPoint("TOPLEFT", 12, y)
+        y = y - 26
+    end
+    check(L("Enable the loot council"), "enabled")
+    check(L("Ask to start a session when I open a boss as master looter"), "autoStart")
+    check(L("Announce awards in raid chat"), "announce")
+    check(L("Autopass items my class cannot use"), "autopass")
+    check(L("Loot log: record every item looted in raid"), "logLoot")
+    y = y - 8
+    local function row(text)
+        local lbl = W.Label(p, text, "GameFontHighlightSmall")
+        lbl:SetPoint("TOPLEFT", 16, y - 4)
+        y = y - 30
+        return lbl
+    end
+    local q = row(L("Minimum quality:"))
+    W.Cycle(p, 120, { { 2, QualityName(2) }, { 3, QualityName(3) }, { 4, QualityName(4) }, { 5, QualityName(5) } },
+        function() return db.minQuality end, function(v) db.minQuality = v end):SetPoint("LEFT", q, "RIGHT", 10, 0)
+    local t = row(L("Answer time:"))
+    W.Cycle(p, 80, { { 30, "30 s" }, { 60, "60 s" }, { 90, "90 s" }, { 120, "120 s" }, { 180, "180 s" } },
+        function() return db.timeout end, function(v) db.timeout = v end):SetPoint("LEFT", t, "RIGHT", 10, 0)
+    local c = row(L("Council: guild ranks up to"))
+    local rankBtn = W.Cycle(p, 150, RankValues(), function() return db.councilRank end, function(v) db.councilRank = v end)
+    rankBtn:SetPoint("LEFT", c, "RIGHT", 10, 0)
+    local e = row(L("Extra council members (names, comma):"))
+    local box = W.EditBox(p, 300, 200)
+    box:SetPoint("LEFT", e, "RIGHT", 10, 0)
+    box:SetScript("OnShow", function(self) self:SetText(db.councilExtra or "") end)
+    box:SetScript("OnTextChanged", function(self) db.councilExtra = self:GetText() end)
+end
+
+local function Build(p)
+    W.Title(p, L("Loot Council"))
+    UI.tabs = W.SubTabs(p, { L("Session"), L("History"), L("Soft-res"), L("Settings") })
+    BuildSession(UI.tabs.frames[1])
+    BuildHistory(UI.tabs.frames[2])
+    BuildSR(UI.tabs.frames[3])
+    BuildSettings(UI.tabs.frames[4])
+    UI.tabs:Select(1)
+end
+
+-- Test: a session with 3 of your own equipped items
+function LC.Test()
+    local items = {}
+    for _, slot in ipairs({ 1, 5, 16, 7, 3 }) do
+        local str = W.ItemString(GetInventoryItemLink("player", slot))
+        if str and #items < 3 then items[#items + 1] = str end
+    end
+    if #items == 0 then items = { "item:19019" } end
+    LC.StartSession(items)
+end
+
+W.slash.loot = function(rest)
+    rest = rest or ""
+    if rest == "test" then LC.Test()
+    elseif rest:match("^add") then
+        local str = W.ItemString(rest)
+        if str then table.insert(db.pending, str); W.Print(W.ItemLink(str)) end
+    elseif rest == "vote" then LC.ShowVote()
+    else W.Toggle("LootCouncil") end
+end
+W.slash.sr = function() W.Toggle("LootCouncil"); if UI.tabs then UI.tabs:Select(3) end end
+
+W.RegisterModule("LootCouncil", L("Loot Council"), Build, function() LC.RefreshSession() end)

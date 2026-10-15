@@ -1,0 +1,4 @@
+<Bindings>
+	<!-- Reloads the interface in one key press (secure /reload button, Lib.lua) -->
+	<Binding name="CLICK WLRTReloadKey:LeftButton" header="WARLEGENDRAIDTOOL" category="ADDONS"/>
+</Bindings>

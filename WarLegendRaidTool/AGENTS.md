@@ -1,0 +1,79 @@
+# WarLegendRaidTool — context for coding agents
+
+World of Warcraft **Classic** addon (client beta, `## Interface: 16001`) for the "War Legend" guild:
+raid groups, loot council, raid note, buffs, ready check, attendance, who pulled, inspect, aura
+tracking, raid cooldowns, alts, guild tools. Slash command `/wl` (also `/wlrt`, `/warlegend`).
+Current version is in `WarLegendRaidTool.toc` (`## Version:`).
+
+The user is French: **always answer in French**. Code, comments and English UI strings stay in English.
+
+## Hard rules
+- **Lua 5.1** (WoW): no `goto`, no `//`, no bitwise operators, no `table.unpack` (use `unpack`).
+- **Never invent WoW API functions.** If you are not sure an API exists on Classic, say so and
+  guard it like the existing code does: `if C_ChatInfo and C_ChatInfo.X then ... else OldGlobal(...) end`.
+- **Read a file before editing it.** Make the smallest change that works. Never rewrite a whole file,
+  never rename existing functions, globals, DB keys or addon-message prefixes.
+- Files are **UTF-8 without BOM, LF line endings, 4-space indentation**. Keep it that way
+  (French accents in strings must stay valid UTF-8).
+- Secure frames / protected actions cannot change in combat: check `InCombatLockdown()` first.
+- There are no automated tests. The user tests in game with `/reload`. Say what to test.
+
+## Load order and files
+`WarLegendRaidTool.toc` lists the files in load order: `Locale.lua`, `Core.lua`, `Lib.lua`, then one file
+per module, `VersionCheck.lua` last. **A new file must be added to the .toc** (before `VersionCheck.lua`)
+or WoW will not load it. Other files in the folder (like this one) are ignored by the game.
+
+- `Locale.lua` — `W.L`, `W.AddFR`, `W.SetLanguage`, base French table.
+- `Core.lua` — events, saved DB, access check, group/guild helpers, UI widgets, main window, `/wl`.
+- `Lib.lua` — addon-message queue, item/name helpers, extra widgets (SubTabs, Table, Confirm...).
+- One file per module (`AutoLog.lua`, `Focus.lua`, `CombatTimer.lua` are small, good examples).
+- **Two addons**: the raid modules (RaidGroups, LootCouncil, RaidBuffs, ReadyCheck, Checklist, WhoPulled, RaidInspect,
+  AuraTracker, RaidCooldowns, Readiness) live in the sibling folder `../WarLegendRaidTool_Raid` (load-on-demand, like BigWigs
+  zone modules), listed in ITS `.toc`. `Core.lua` loads it (`W.LoadRaid`) in a group, in a dungeon / raid, with Aura Tracking on,
+  when `/wl` opens, or when one of its addon messages arrives (prefixes listed in `lodPrefix`: a new prefix there too).
+  In that addon `W.OnReady` runs after the whole file is loaded, `W.On` handlers for login / entering world are replayed once.
+
+## Module pattern (copy this)
+Every file starts with:
+```lua
+-- WarLegend RaidTool - ModuleName
+-- One or two lines saying what the module does.
+local W = WLRT
+local L = W.L
+local db
+```
+- **Saved data**: `W.OnReady(function() db = W.DB("moduleKey", { option = false }) end)`.
+  Defaults are scalars only. SavedVariables is `WarLegendRaidToolDB` (`W.db`). Changing the format of
+  existing saved data needs `W.Migration(version, key, fn)`.
+- **Events**: `W.On("EVENT_NAME", fn)` (one shared frame). Returns a handler; pass `inactive = true`
+  (4th arg) to start it off and switch with `W.Activate(handler, on)`. Handlers only run once the
+  player is confirmed in the War Legend guild (`W.Allowed()`), except core ones with `always = true`.
+  Group changes: `W.OnRoster(fn)`. Timers: `W.After(seconds, fn)`.
+- **Window tab**: `W.RegisterModule("Key", "Label", function(panel) ... end, refreshFn)`.
+  Build the UI with `W.Title(p, text)`, `W.Check(p, text, get, set, tip)`, `W.Button(p, text, w, h, onClick, tip)`,
+  `W.Label(p, text, font)`, `W.EditBox(p, w, maxLetters)`, `W.Cycle`, `W.ScrollList`, `W.Table`, `W.SubTabs`,
+  then `:SetPoint("TOPLEFT", x, -y)`. To show the module in the menu, add its key to `CATEGORIES`
+  in `Core.lua` (otherwise it goes to the last section).
+- **Slash sub-command**: `W.slash.name = function(rest) ... end` gives `/wl name`.
+- **Chat output**: `W.Print(msg)` (local), `W.Announce(text, channel)` / `W.SendChat(...)` (public).
+- **Addon messages**: `W.OnAddon(prefix, fn)` to receive, `W.Send(prefix, msg, channel, target)` to send,
+  `W.Pack` / `W.Unpack` for fields, `W.SendLong` / `W.OnAddonLong` for long texts.
+- **Group / names**: `W.InRaid()`, `W.InGroup()`, `W.IsLeader()`, `W.CanLead()`, `W.GroupUnits()`,
+  `W.FullName(name)`, `W.UnitKey(unit)`, `W.ColorName(name, class)`.
+
+## Translations (English source, French on frFR clients)
+- Every visible text goes through `L("English text")` — a function call, **not** `L["..."]`.
+- The French version goes in the **same module file**, near the top:
+  ```lua
+  W.AddFR({
+      ["Combat logging started."] = "Journal de combat démarré.",
+  })
+  ```
+- The language is only known at `ADDON_LOADED`: call `L()` inside build functions, event handlers or
+  `W.OnReady`, not at file load time. Tables of texts built at load time use `W.TranslateField(list, field)`.
+- Keep color codes (`|cff......|r`) and `%s` / `%d` identical in the French string.
+
+## How to work here
+1. Say which file(s) you will touch and why, in one or two lines.
+2. Read them, then edit with small, targeted changes in the existing style.
+3. Finish with: what changed, what to test in game (`/reload`, which `/wl` command or window tab).

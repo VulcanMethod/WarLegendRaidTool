@@ -1,0 +1,1751 @@
+-- WarLegend RaidTool - Core
+-- Shared base: events, database, group/guild helpers,
+-- UI widgets (no custom images) and the tabbed main window.
+local ADDON = ...
+WLRT = WLRT or {}
+local W = WLRT
+local L = W.L
+
+local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+W.ADDON = ADDON
+W.version = (meta and meta(ADDON, "Version")) or "?"
+W.R, W.G, W.B = 0.808, 0.098, 0.094 -- warlegend.net red (#CE1918)
+W.TAG = "|cffce1918[WarLegend]|r " -- text only: also used in whispers, which cannot carry textures
+-- War Legend skull logo (Media/Logo.tga 256 px, Media/Logo64.tga for small icons)
+W.LOGO_TEX = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Logo"
+W.LOGO_SMALL = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Logo64"
+W.WHITE = "Interface\\Buttons\\WHITE8X8"
+W.LOGO = "|cffffffffWAR|r|cffce1918LEGEND|r"
+W.FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+W.ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
+W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
+W.BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+
+function W.Print(msg)
+    DEFAULT_CHAT_FRAME:AddMessage("|T" .. W.LOGO_SMALL .. ":14:14|t " .. W.TAG .. tostring(msg))
+end
+
+function W.After(delay, fn)
+    if C_Timer and C_Timer.After then C_Timer.After(delay, fn) end
+end
+
+---------------------------------------------------------------------------
+-- Events (a single frame for the whole addon)
+---------------------------------------------------------------------------
+local evFrame = CreateFrame("Frame")
+local handlers, registered = {}, {}
+-- while the raid addon loads: what its files register, to replay the login / roster events they missed
+local late
+
+-- An event is registered only while at least one of its handlers is active: a frequent event
+-- (target change, item info, loot...) costs nothing while no option or window needs it.
+local function Sync(event)
+    local want = false
+    for _, h in ipairs(handlers[event]) do
+        if h.active then want = true; break end
+    end
+    if want == (registered[event] or false) then return end
+    registered[event] = want
+    if want then
+        pcall(evFrame.RegisterEvent, evFrame, event) -- some events do not exist on every client
+    else
+        evFrame:UnregisterEvent(event)
+    end
+end
+
+-- always = true: runs even when the player is not allowed to use the addon (core only).
+-- inactive = true: starts switched off (W.Activate turns it on). Returns the handler.
+function W.On(event, fn, always, inactive)
+    handlers[event] = handlers[event] or {}
+    local h = { fn = fn, always = always, active = not inactive, event = event }
+    local list = handlers[event]
+    list[#list + 1] = h
+    if late then late.handlers[#late.handlers + 1] = h end
+    Sync(event)
+    return h
+end
+
+function W.Activate(h, on)
+    on = on and true or false
+    if not h or h.active == on then return end
+    h.active = on
+    Sync(h.event)
+end
+
+local function Run(event, gatedOnly, ...)
+    local list = handlers[event]
+    if not list then return end
+    for i = 1, #list do
+        local h = list[i]
+        if h.active and ((W.access == true and (not gatedOnly or not h.always)) or (h.always and not gatedOnly)) then
+            local ok, err = pcall(h.fn, ...)
+            if not ok then geterrorhandler()(err) end
+        end
+    end
+end
+
+-- One "roster settled" signal shared by the modules: a raid forming fires dozens of
+-- GROUP_ROSTER_UPDATE in a row, the modules run once, half a second after the first one.
+local rosterFns, rosterPending = {}, false
+function W.OnRoster(fn)
+    rosterFns[#rosterFns + 1] = fn
+    if late then late.roster[#late.roster + 1] = fn end
+end
+
+local function RosterSettled()
+    rosterPending = false
+    if W.access ~= true then return end
+    for _, fn in ipairs(rosterFns) do
+        local ok, err = pcall(fn)
+        if not ok then geterrorhandler()(err) end
+    end
+end
+
+-- Login events seen while the guild is still unknown: replayed once access is granted
+local buffered = {}
+evFrame:SetScript("OnEvent", function(_, event, ...)
+    if W.access == nil and (event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD") then
+        buffered[#buffered + 1] = { event, ... }
+    end
+    Run(event, false, ...)
+end)
+
+local function RosterChanged()
+    if rosterPending then return end
+    rosterPending = true
+    W.After(0.5, RosterSettled)
+end
+W.On("GROUP_ROSTER_UPDATE", RosterChanged)
+W.On("RAID_ROSTER_UPDATE", RosterChanged) -- older clients
+
+---------------------------------------------------------------------------
+-- Access: the addon only works for members of the War Legend guild
+---------------------------------------------------------------------------
+W.GUILD_NAME = "War Legend"
+-- true: only members of GUILD_NAME can use the addon. Set to false to let everybody use it;
+-- nothing else changes.
+W.GUILD_RESTRICTED = true
+W.access = (not W.GUILD_RESTRICTED) and true or nil -- nil = not known yet, true / false
+local function Norm(s) return ((s or ""):lower():gsub("[%s%-_'%.]", "")) end
+local accessChecks = 0
+
+function W.Allowed() return W.access == true end
+
+function W.Denied()
+    if W.access == nil then
+        W.Print(L("Checking your guild..."))
+    else
+        W.Print(string.format(L("This addon is reserved for members of the %s guild."), W.GUILD_NAME))
+    end
+end
+
+local function SetAccess(v)
+    if W.access == v then return end
+    local was = W.access
+    W.access = v
+    if v then
+        -- replay what the modules missed while we were waiting for the guild name
+        local list = buffered
+        buffered = {}
+        if #list == 0 and was == false then list = { { "PLAYER_LOGIN" }, { "PLAYER_ENTERING_WORLD", false, false } } end
+        for _, e in ipairs(list) do Run(e[1], true, unpack(e, 2)) end
+    else
+        buffered = {}
+        if W.Hide then W.Hide() end
+        W.Denied()
+    end
+end
+
+function W.CheckAccess()
+    if not W.GUILD_RESTRICTED then SetAccess(true); return end
+    if not (IsInGuild and IsInGuild()) then
+        -- right after login the guild may not be known yet
+        if accessChecks < 10 and W.access == nil then return end
+        SetAccess(false); return
+    end
+    local name = GetGuildInfo and GetGuildInfo("player")
+    if not name then return end
+    SetAccess(Norm(name) == Norm(W.GUILD_NAME))
+end
+
+local function Poll()
+    accessChecks = accessChecks + 1
+    W.CheckAccess()
+    if W.access == nil then
+        if accessChecks >= 15 then SetAccess(false) else W.After(2, Poll) end
+    end
+end
+W.On("PLAYER_LOGIN", function() W.After(1, Poll) end, true)
+W.On("PLAYER_GUILD_UPDATE", function() W.CheckAccess() end, true)
+W.On("GUILD_ROSTER_UPDATE", function() W.CheckAccess() end, true)
+
+-- Addon messages: one handler per prefix
+local addonHandlers = {}
+function W.RegisterPrefix(prefix)
+    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+        C_ChatInfo.RegisterAddonMessagePrefix(prefix)
+    elseif RegisterAddonMessagePrefix then
+        RegisterAddonMessagePrefix(prefix)
+    end
+end
+
+function W.OnAddon(prefix, fn)
+    W.RegisterPrefix(prefix)
+    addonHandlers[prefix] = fn
+end
+
+function W.AddonHandler(prefix) return addonHandlers[prefix] end
+
+-- Addon messages are taken from my group and my guild only. Anyone on the realm can whisper an
+-- addon message (and any addon can reuse our prefixes): a whisper must come from a group or guild
+-- member. Handlers get (msg, short name for display / state, channel, full "Name-Realm" name).
+-- The full name is the one to trust: two players can share a short name on different realms.
+local GROUP_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, GUILD = true, OFFICER = true }
+
+---------------------------------------------------------------------------
+-- Load-on-demand raid modules (the way BigWigs loads its zone modules)
+-- The raid tools (groups, loot council, buffs, ready check, checklist, inspect, aura tracking, raid
+-- cooldowns, readiness, who pulled) live in the addon WarLegendRaidTool_Raid, which the game loads only
+-- when it is needed: in a group, in a dungeon / raid, with Aura Tracking switched on, when /wl is
+-- opened, or when one of their addon messages arrives. Alone in the open world (or alone in a
+-- battleground), none of their code is in memory.
+---------------------------------------------------------------------------
+local RAID_ADDON = "WarLegendRaidTool_Raid"
+local lodPrefix = {}
+for _, p in ipairs({ "WLRT_CON", "WLRT_LC", "WLRT_BUFF", "WLRT_CD2", "WLRT_RG", "WLRT_INSQ", "WLRT_INSD",
+    "WLRT_RDYQ", "WLRT_RDYA", "WLRT_DUR" }) do
+    lodPrefix[p] = true
+    W.RegisterPrefix(p) -- the messages must reach us before the module that reads them is loaded
+end
+W.raidLoaded = false
+local pendingMsgs, loadFailed, waitCombat = {}, false, false
+local Dispatch
+
+W.AddFR({
+    ["The raid modules are missing or disabled: install the folder WarLegendRaidTool_Raid next to WarLegendRaidTool."] =
+        "Les modules de raid sont absents ou désactivés : installe le dossier WarLegendRaidTool_Raid à côté de WarLegendRaidTool.",
+})
+
+-- Loads the raid addon now. Handlers its files registered after the login / roster events already
+-- happened are run once, and the messages that asked for the load are delivered.
+function W.LoadRaid()
+    if W.raidLoaded then return true end
+    if loadFailed or not (C_AddOns and C_AddOns.LoadAddOn) then return false end
+    late = { handlers = {}, roster = {}, ready = {} }
+    local ok = C_AddOns.LoadAddOn(RAID_ADDON)
+    local got = late
+    late = nil
+    if not ok then
+        loadFailed = true
+        wipe(pendingMsgs)
+        W.Print(L("The raid modules are missing or disabled: install the folder WarLegendRaidTool_Raid next to WarLegendRaidTool."))
+        return false
+    end
+    W.raidLoaded = true
+    for _, fn in ipairs(got.ready) do
+        local good, err = pcall(fn)
+        if not good then geterrorhandler()(err) end
+    end
+    if W.access == true then
+        for _, h in ipairs(got.handlers) do
+            if h.active and not h.always and (h.event == "PLAYER_ENTERING_WORLD" or h.event == "PLAYER_LOGIN") then
+                local good, err = pcall(h.fn, false, false)
+                if not good then geterrorhandler()(err) end
+            end
+        end
+        for _, fn in ipairs(got.roster) do
+            local good, err = pcall(fn)
+            if not good then geterrorhandler()(err) end
+        end
+    end
+    local msgs = pendingMsgs
+    pendingMsgs = {}
+    for _, m in ipairs(msgs) do Dispatch(m[1], m[2], m[3], m[4]) end
+    return true
+end
+
+-- Should the raid modules be in memory now? (in a group, a dungeon / raid, or with Aura Tracking on)
+local function WantRaid()
+    if W.access ~= true or W.raidLoaded or loadFailed then return false end
+    local auras = W.db and W.db.auras
+    if auras and auras.enabled then return true end -- Aura Tracking works everywhere, PvP included
+    if W.InGroup() then return true end -- a battleground raid too (Raid Groups, marks)
+    local inInstance, kind = IsInInstance()
+    return inInstance and (kind == "party" or kind == "raid" or kind == "scenario") and true or false
+end
+
+function W.MaybeLoadRaid()
+    if not WantRaid() then return end
+    if InCombatLockdown() then waitCombat = true; return end -- frames are made after the fight
+    W.LoadRaid()
+end
+W.On("PLAYER_ENTERING_WORLD", function() W.MaybeLoadRaid() end)
+W.On("PLAYER_REGEN_ENABLED", function() if waitCombat then waitCombat = false; W.MaybeLoadRaid() end end)
+W.OnRoster(function() W.MaybeLoadRaid() end)
+
+function Dispatch(prefix, msg, channel, sender)
+    local fn = addonHandlers[prefix]
+    if not fn then
+        -- a message for a raid module that is not loaded yet: load it, then deliver the message
+        if lodPrefix[prefix] and not W.raidLoaded and not loadFailed and W.access == true then
+            if #pendingMsgs < 50 then pendingMsgs[#pendingMsgs + 1] = { prefix, msg, channel, sender } end
+            W.LoadRaid()
+        end
+        return
+    end
+    msg, sender = W.Safe(msg), W.Safe(sender)
+    if not msg or not sender or sender == "" then return end
+    local full = W.FullName(sender)
+    if not GROUP_CHANNELS[channel] then
+        if channel ~= "WHISPER" then return end
+        if not (W.UnitByName(full) or W.GuildMember(full)) then return end
+    end
+    fn(msg, W.BaseName(sender), channel, full)
+end
+W.On("CHAT_MSG_ADDON", function(prefix, msg, channel, sender) Dispatch(prefix, msg, channel, sender) end)
+
+-- Character names. WoW: Forever (interface 1.60+) has no realms: a character is "First Surname"
+-- (only the full name is unique, many share a first name) and UnitName returns the surname where
+-- retail returns the realm. The full identity is "First Surname" there, "Name-Realm" elsewhere;
+-- the short name (display, per-player state) is the first name, like UnitName's first value.
+local iface = tonumber((select(4, GetBuildInfo()))) or 0
+W.FOREVER = (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT) or (iface >= 16000 and iface < 20000)
+W.NAME_SEP = (Constants and Constants.CharacterNameSeparatorConsts
+    and Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+if W.NAME_SEP == "" then W.NAME_SEP = " " end
+local SEP = W.NAME_SEP
+local SEP_CLASS = SEP == " " and "%s" or SEP:gsub("%W", "%%%0")
+
+-- Realm without spaces, as in "Name-Realm"
+local myRealm
+function W.MyRealm()
+    if not myRealm or myRealm == "" then
+        myRealm = (GetNormalizedRealmName and GetNormalizedRealmName())
+            or ((GetRealmName and GetRealmName() or ""):gsub("%s", ""))
+    end
+    return myRealm or ""
+end
+
+-- Any form of a name -> the full identity ("First Surname" on Forever, "Name-Realm" elsewhere)
+function W.FullName(name)
+    if not name or name == "" then return name end
+    if W.FOREVER then
+        if name:find(SEP, 1, true) then return (name:gsub("%-.*$", "")) end -- "First Surname[-Realm]"
+        return (name:gsub("%-", SEP, 1))                                    -- "First-Surname" / "First"
+    end
+    if name:find("-", 1, true) then return name end
+    return name .. "-" .. W.MyRealm()
+end
+
+function W.UnitFullName(unit)
+    local n, second = UnitName(unit)
+    n, second = W.Safe(n), W.Safe(second)
+    if not n then return nil end
+    if W.FOREVER then
+        -- some units already carry the surname in the first value
+        if second and second ~= "" and not n:find(SEP .. second, 1, true) then return n .. SEP .. second end
+        return n
+    end
+    if not second or second == "" then second = W.MyRealm() end
+    return n .. "-" .. second
+end
+
+-- Keys for per-player data: the full identity, lowercased. Two players sharing a first name
+-- (WoW: Forever) or a name on two realms never share a key.
+function W.Key(name)
+    local f = W.FullName(name)
+    return f and f:lower()
+end
+
+function W.UnitKey(unit)
+    local f = W.UnitFullName(unit)
+    return f and f:lower()
+end
+
+-- Name shown in our windows: "First Surname" on Forever (as Blizzard's frames), the name elsewhere
+function W.UnitDisplayName(unit)
+    if W.FOREVER then return W.UnitFullName(unit) end
+    return W.Safe(UnitName(unit))
+end
+
+-- true when a full name carries the part that makes it unique (surname / realm)
+function W.HasFullPart(name)
+    if not name then return false end
+    if W.FOREVER then return name:find(SEP, 1, true) ~= nil end
+    return name:find("-", 1, true) ~= nil
+end
+
+---------------------------------------------------------------------------
+-- Database
+---------------------------------------------------------------------------
+local readyFns = {}
+function W.OnReady(fn)
+    -- a file of the raid addon: its ready functions run once the whole file is loaded, like at login
+    if late then late.ready[#late.ready + 1] = fn; return end
+    if W.db then fn() else readyFns[#readyFns + 1] = fn end
+end
+
+-- DB sub-table with default values (scalars only). A value of the wrong type (damaged file,
+-- old format) is put back to its default instead of breaking the module.
+function W.DB(key, defaults)
+    local t = W.db[key]
+    if type(t) ~= "table" then t = {}; W.db[key] = t end
+    if defaults then
+        for k, v in pairs(defaults) do
+            if type(t[k]) ~= type(v) then t[k] = v end
+        end
+    end
+    return t
+end
+
+-- Saved data format versions. A module changing its saved format registers a migration
+-- (W.Migration(version, fn)); they run once each, in order, before the modules start.
+-- A failing migration resets only the data it was working on, never the whole file.
+local migrations = {}
+function W.Migration(version, key, fn)
+    migrations[#migrations + 1] = { v = version, key = key, fn = fn }
+end
+
+local function Migrate(db)
+    local from = tonumber(db.schema) or 0
+    local top = from
+    table.sort(migrations, function(a, b) return a.v < b.v end)
+    for _, m in ipairs(migrations) do
+        if m.v > from then
+            local ok, err = pcall(m.fn, db)
+            if not ok then
+                geterrorhandler()(err)
+                if m.key then db[m.key] = nil end -- that module starts clean, the rest is kept
+            end
+        end
+        if m.v > top then top = m.v end
+    end
+    db.schema = top
+end
+
+W.On("ADDON_LOADED", function(name)
+    if name ~= ADDON then return end
+    if type(WarLegendRaidToolDB) ~= "table" then WarLegendRaidToolDB = {} end
+    W.db = WarLegendRaidToolDB
+    Migrate(W.db)
+    W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto" })
+    -- the language is known from here: everything built from now on uses it
+    W.SetLanguage(W.db.ui.lang)
+    W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
+    W.DB("minimap", { angle = 200 })
+    W.ResolveTheme()
+    for _, fn in ipairs(readyFns) do
+        local ok, err = pcall(fn)
+        if not ok then geterrorhandler()(err) end
+    end
+    readyFns = {}
+end, true)
+
+---------------------------------------------------------------------------
+-- Player / group / guild helpers (fallbacks for older clients)
+---------------------------------------------------------------------------
+function W.Safe(v)
+    if v ~= nil and ((issecretvalue and issecretvalue(v)) or (canaccessvalue and not canaccessvalue(v))) then
+        return nil
+    end
+    return v
+end
+
+-- Short name: without realm (and, on Forever, without surname), as UnitName's first value
+function W.BaseName(name)
+    if not name then return nil end
+    if W.FOREVER then return name:match("^([^%-" .. SEP_CLASS .. "]+)") or name end
+    return name:match("^([^%-]+)") or name
+end
+
+function W.SanitizeName(s)
+    s = (s or ""):gsub("[;,|:~\r\n]", "")
+    s = s:gsub("^%s+", ""):gsub("%s+$", "")
+    return s
+end
+
+function W.InRaid()
+    if IsInRaid then return IsInRaid() and true or false end
+    return (GetNumRaidMembers and GetNumRaidMembers() or 0) > 0
+end
+
+function W.NumRaid()
+    if not W.InRaid() then return 0 end
+    if GetNumGroupMembers then return GetNumGroupMembers() end
+    return GetNumRaidMembers()
+end
+
+function W.NumParty()
+    if GetNumSubgroupMembers then return GetNumSubgroupMembers() end
+    if GetNumPartyMembers then return GetNumPartyMembers() end
+    return 0
+end
+
+function W.InGroup()
+    return W.InRaid() or W.NumParty() > 0
+end
+
+function W.IsLeader()
+    if UnitIsGroupLeader then return UnitIsGroupLeader("player") and true or false end
+    return IsRaidLeader and IsRaidLeader() and true or false
+end
+
+function W.CanLead()
+    if not W.InRaid() then return true end
+    if W.IsLeader() then return true end
+    if UnitIsGroupAssistant then return UnitIsGroupAssistant("player") and true or false end
+    return IsRaidOfficer and IsRaidOfficer() and true or false
+end
+
+-- Unit tokens built once (no string concatenation in loops)
+W.RAID_UNITS, W.PARTY_UNITS = {}, {}
+for i = 1, 40 do W.RAID_UNITS[i] = "raid" .. i end
+for i = 1, 4 do W.PARTY_UNITS[i] = "party" .. i end
+
+function W.GroupUnits()
+    local units = {}
+    if W.InRaid() then
+        for i = 1, W.NumRaid() do units[#units + 1] = W.RAID_UNITS[i] end
+    elseif W.InGroup() then
+        units[1] = "player"
+        for i = 1, 4 do
+            if UnitExists(W.PARTY_UNITS[i]) then units[#units + 1] = W.PARTY_UNITS[i] end
+        end
+    end
+    return units
+end
+
+function W.Channel()
+    if W.InRaid() then return "RAID" end
+    if W.InGroup() then return "PARTY" end
+end
+
+-- Chat messages. WoW: Forever has a "chat messaging lockdown" (boss encounter, challenge mode,
+-- PvP match) where addon messages in chat are refused (ADDON_ACTION_BLOCKED): check it first.
+W.AddFR({
+    ["Group chat is locked during boss fights: message shown only to you."] =
+        "Le chat de groupe est verrouillé pendant les combats de boss : message affiché pour toi seulement.",
+})
+
+function W.ChatLocked()
+    local f = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+    if not f then return false end
+    local locked = f()
+    if locked ~= nil and W.Safe(locked) == nil then return true end -- hidden answer: treat as locked
+    return locked and true or false
+end
+
+-- Sends one line; false when it could not be sent (locked, empty, refused)
+function W.SendChat(text, channel, target)
+    if type(text) ~= "string" or text == "" or not channel or W.ChatLocked() then return false end
+    local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+    if not send then return false end
+    local ok, res = pcall(send, text, channel, nil, target)
+    if not ok then return false end
+    local success = Enum and Enum.SendChatMessageResult and Enum.SendChatMessageResult.Success
+    if type(res) == "number" and success and res ~= success then return false end
+    return true
+end
+
+-- Announces in group chat, or shows the line to me alone when the chat is locked
+local lockNoticeAt = 0
+function W.Announce(text, channel)
+    if W.SendChat(text, channel) then return true end
+    if GetTime() - lockNoticeAt > 10 then
+        lockNoticeAt = GetTime()
+        W.Print(L("Group chat is locked during boss fights: message shown only to you."))
+    end
+    W.Print(text)
+    return false
+end
+
+-- Battleground / arena: the raid tools have nothing to do there
+function W.InPvP()
+    local _, kind = IsInInstance()
+    return kind == "pvp" or kind == "arena"
+end
+
+-- Addon message transport. The modern API returns a result code where only Success (0) means the
+-- message was accepted. Returns "sent", "throttle" (client limit: retry in a moment), "locked"
+-- (AddOnMessageLockdown, e.g. during an encounter: retry after it) or "failed" (not in a group,
+-- offline target...: will never succeed).
+local AR = Enum and Enum.SendAddonMessageResult or {}
+local AR_OK = AR.Success or 0
+local AR_THROTTLE = { [AR.AddonMessageThrottle or 3] = true, [AR.ChannelThrottle or 8] = true }
+local AR_LOCKED = AR.AddOnMessageLockdown or 11
+
+function W.SendRaw(prefix, msg, channel, target)
+    if not channel then return "failed" end
+    if channel ~= "RAID" and channel ~= "PARTY" and channel ~= "GUILD" and channel ~= "INSTANCE_CHAT" then
+        return "failed"
+    end
+    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
+        local ok, r = pcall(C_ChatInfo.SendAddonMessage, prefix, msg, channel, target)
+        if not ok then return "failed" end
+        if r == nil or r == true or r == AR_OK then return "sent" end
+        if r == AR_LOCKED then return "locked" end
+        if AR_THROTTLE[r] then return "throttle" end
+        return "failed"
+    elseif SendAddonMessage then
+        SendAddonMessage(prefix, msg, channel, target)
+        return "sent"
+    end
+    return "failed"
+end
+
+-- One immediate message; true only when the client accepted it
+function W.Send(prefix, msg, channel, target)
+    channel = channel or W.Channel()
+    if not channel then return false end
+    return W.SendRaw(prefix, msg, channel, target) == "sent"
+end
+
+function W.GetMarker(unit)
+    return W.Safe(GetRaidTargetIndex(unit)) or 0
+end
+
+function W.IsInGuild()
+    return IsInGuild and IsInGuild() and true or false
+end
+
+-- Requests a fresh roster (Blizzard throttles to once / 10 s); GUILD_ROSTER_UPDATE follows.
+function W.RequestGuildRoster()
+    if not W.IsInGuild() then return end
+    if C_GuildInfo and C_GuildInfo.GuildRoster then
+        C_GuildInfo.GuildRoster()
+    elseif GuildRoster then
+        GuildRoster()
+    end
+end
+
+-- Every guild member: { name, class, rank, rankIndex, level, online }
+-- Built once per GUILD_ROSTER_UPDATE (and only when someone asks): the list is shared, do not modify it.
+-- Each entry: name = short name (display), full = full identity (invites, checks).
+local guildList, guildByFull, guildByShort, guildDirty = {}, {}, {}, true
+local function GuildDirty() guildDirty = true end
+W.On("GUILD_ROSTER_UPDATE", GuildDirty, true)
+W.On("PLAYER_GUILD_UPDATE", GuildDirty, true)
+
+function W.GuildMembers()
+    if not W.IsInGuild() then return {} end
+    if not guildDirty then return guildList end
+    guildDirty = false
+    local list, byFull, byShort = {}, {}, {}
+    for i = 1, (GetNumGuildMembers() or 0) do
+        local name, rankName, rankIndex, level, _, _, _, _, online, _, class = GetGuildRosterInfo(i)
+        name = W.Safe(name)
+        if name then
+            local full = W.FullName(name)
+            local key = full:lower()
+            if not byFull[key] then
+                local m = {
+                    name = W.BaseName(name), full = full, class = W.Safe(class), rank = rankName, rankIndex = rankIndex,
+                    level = level, online = online and true or false,
+                }
+                byFull[key] = m
+                list[#list + 1] = m
+                -- a short name points to its member only while nobody else has it
+                local s = m.name:lower()
+                if byShort[s] == nil then byShort[s] = m else byShort[s] = false end
+            end
+        end
+    end
+    -- new tables: a list a caller is still looping over stays valid
+    guildList, guildByFull, guildByShort = list, byFull, byShort
+    return list
+end
+
+-- Guild member by full name, or by a short name nobody else in the guild has; else nil
+function W.GuildMember(name)
+    if not name or not W.IsInGuild() then return nil end
+    W.GuildMembers()
+    local m = guildByFull[W.FullName(name):lower()]
+    if m then return m end
+    if W.HasFullPart(name) then
+        -- a full name that does not match: only accept it when the other side has no full part
+        local s = guildByShort[W.BaseName(name):lower()]
+        return (s and not W.HasFullPart(s.full)) and s or nil
+    end
+    return guildByShort[W.BaseName(name):lower()] or nil
+end
+
+---------------------------------------------------------------------------
+-- Modern / vanilla API wrappers (WoW Forever runs on a modern client)
+---------------------------------------------------------------------------
+W.GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+W.GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+W.GetDetailedItemLevelInfo = (C_Item and C_Item.GetDetailedItemLevelInfo) or GetDetailedItemLevelInfo
+
+function W.SpellName(id)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+    if C_Spell and C_Spell.GetSpellInfo then
+        local info = C_Spell.GetSpellInfo(id)
+        return info and info.name
+    end
+    return GetSpellInfo and (GetSpellInfo(id))
+end
+
+-- Item level of an item link (nil while the item data is not loaded yet)
+function W.ItemLevel(link)
+    if not link then return nil end
+    local lvl = W.GetDetailedItemLevelInfo and W.GetDetailedItemLevelInfo(link)
+    if not lvl and W.GetItemInfo then lvl = select(4, W.GetItemInfo(link)) end
+    lvl = W.Safe(lvl)
+    return (lvl and lvl > 0) and lvl or nil
+end
+
+-- Talents: Forever stores the 3 vanilla trees as trait groups (C_Traits), like Naowh Forever reads them.
+-- Returns { spent = {21, 9, 0}, names = {...}, total, best } or nil
+function W.ReadTalentConfig(configID)
+    if not (configID and C_Traits and C_Traits.GetConfigInfo and C_Traits.GetGroupDisplayInfoByTreeID) then return nil end
+    local config = C_Traits.GetConfigInfo(configID)
+    local treeID = config and config.treeIDs and config.treeIDs[1]
+    if not treeID then return nil end
+    local groups = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
+    if not groups or #groups == 0 then return nil end
+    local ids = {}
+    for i, g in ipairs(groups) do ids[i] = g.groupID end
+    local infos = (C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, ids)) or {}
+    local t = { spent = {}, names = {}, total = 0 }
+    local most = -1
+    for i, g in ipairs(groups) do
+        local spent = 0
+        for _, info in ipairs(infos) do
+            local cur = info.traitNodeGroupID == g.groupID and info.currencyInfos and info.currencyInfos[1]
+            if cur then spent = W.Safe(cur.spent) or 0 end
+        end
+        t.spent[i], t.names[i] = spent, g.displayName or ("#" .. i)
+        t.total = t.total + spent
+        if spent > most then t.best, most = t.names[i], spent end
+    end
+    return t
+end
+
+-- Old vanilla talent API (other clients)
+function W.ClassicTalents(inspect)
+    if not (GetNumTalentTabs and GetTalentInfo and GetTalentTabInfo and GetNumTalents) then return nil end
+    local tabs = GetNumTalentTabs(inspect)
+    if not tabs or tabs == 0 then return nil end
+    local t = { spent = {}, names = {}, total = 0 }
+    local most = -1
+    for tab = 1, tabs do
+        local a, b = GetTalentTabInfo(tab, inspect)
+        local name = type(a) == "string" and a or (type(b) == "string" and b) or ("#" .. tab)
+        local pts = 0
+        for i = 1, (GetNumTalents(tab, inspect) or 0) do
+            local _, _, _, _, rank = GetTalentInfo(tab, i, inspect)
+            pts = pts + (tonumber(rank) or 0)
+        end
+        t.spent[tab], t.names[tab] = pts, name
+        t.total = t.total + pts
+        if pts > most then t.best, most = name, pts end
+    end
+    return t
+end
+
+function W.OwnTalents()
+    local id = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
+    return W.ReadTalentConfig(id) or W.ClassicTalents(false)
+end
+
+-- Talents of the unit being inspected (after INSPECT_READY)
+function W.InspectTalents()
+    if C_Traits and C_Traits.HasValidInspectData then
+        if not C_Traits.HasValidInspectData() then return nil end
+        local consts = Constants and Constants.TraitConsts
+        return W.ReadTalentConfig(consts and consts.INSPECT_TRAIT_CONFIG_ID)
+    end
+    return W.ClassicTalents(true)
+end
+
+function W.TalentText(t)
+    if not t or not t.spent or #t.spent == 0 then return nil end
+    local parts = {}
+    for i, v in ipairs(t.spent) do parts[i] = tostring(v) end
+    return table.concat(parts, "/")
+end
+
+function W.ClassColor(class)
+    local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    if c then return c.r, c.g, c.b end
+    return 0.75, 0.75, 0.75
+end
+
+function W.UnitClassToken(unit)
+    local _, class = UnitClass(unit)
+    return W.Safe(class)
+end
+
+---------------------------------------------------------------------------
+-- Widgets (Blizzard templates only, no custom textures)
+---------------------------------------------------------------------------
+W.BT = BackdropTemplateMixin and "BackdropTemplate" or nil
+local nameCounter = 0
+function W.N(prefix)
+    nameCounter = nameCounter + 1
+    return "WLRT" .. prefix .. nameCounter
+end
+
+function W.Size(f, w, h) f:SetWidth(w); f:SetHeight(h) end
+
+function W.SetColor(tex, r, g, b, a)
+    if tex.SetColorTexture then tex:SetColorTexture(r, g, b, a or 1) else tex:SetTexture(r, g, b, a or 1) end
+end
+
+---------------------------------------------------------------------------
+-- Themes: follows the player's UI
+--   "eui"      EllesmereUI installed -> its skinning API (its colors, font, accent, borders)
+--   "blizzard" default WoW Forever UI -> Blizzard dialog frames, red buttons, gold text
+--   "flat"     WarLegend flat black/red (warlegend.net)
+--   "sashoof"  SashoofUI look: dark navy panels, cyan accent (the "War Legend Classic Forever" UI)
+-- "auto" (default) picks eui when available, else blizzard. Changing it needs a /reload.
+---------------------------------------------------------------------------
+local skin
+W.style = "blizzard"
+
+local BRAND = { 0.808, 0.098, 0.094 } -- WarLegend red #CE1918
+-- colors of the flat themes (panel, light panel, border, button hover, header gradient, menu column)
+local PALETTES = {
+    flat = { panel = { 0.031, 0.031, 0.031 }, light = { 0.075, 0.075, 0.075 }, border = { 0.17, 0.17, 0.17 },
+        hover = { 0.16, 0.05, 0.05 }, headTop = { 0.02, 0.02, 0.02 }, headBottom = { 0.09, 0.03, 0.03 }, side = { 0.05, 0.05, 0.05 } },
+    sashoof = { panel = { 0.043, 0.078, 0.106 }, light = { 0.075, 0.125, 0.165 }, border = { 0.11, 0.2, 0.26 },
+        hover = { 0.05, 0.17, 0.23 }, headTop = { 0.03, 0.07, 0.1 }, headBottom = { 0.05, 0.12, 0.16 }, side = { 0.027, 0.055, 0.075 } },
+}
+local PAL = PALETTES.flat
+function W.IsFlat() return W.style == "flat" or W.style == "sashoof" end
+function W.ResolveTheme()
+    local pref = (W.db and W.db.ui and W.db.ui.style) or "auto"
+    if pref == "auto" then pref = skin and "eui" or "blizzard" end
+    if pref == "eui" and not skin then pref = "blizzard" end
+    W.style = pref
+    PAL = PALETTES[pref] or PALETTES.flat
+    if pref == "eui" then
+        local r, g, b = skin.GetAccentColor()
+        W.R, W.G, W.B = r or BRAND[1], g or BRAND[2], b or BRAND[3]
+        local font = skin.GetFont and skin.GetFont()
+        W.FONT = font or W.FONT
+    elseif pref == "blizzard" then
+        W.R, W.G, W.B = 1, 0.82, 0 -- Blizzard gold
+    elseif pref == "sashoof" then
+        W.R, W.G, W.B = 0, 0.78, 1 -- SashoofUI cyan
+    else
+        W.R, W.G, W.B = BRAND[1], BRAND[2], BRAND[3]
+    end
+end
+function W.Skin() return W.style == "eui" and skin or nil end
+
+if EllesmereUI and EllesmereUI.RegisterSkin then
+    EllesmereUI.RegisterSkin("WarLegendRaidTool", function(S)
+        skin = S
+        W.ResolveTheme()
+        if S.OnLooksChanged then S.OnLooksChanged(function() W.ResolveTheme() end) end
+    end)
+end
+
+function W.IsBlizzard() return W.style == "blizzard" end
+
+local BLIZZ_DIALOG = {
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 },
+}
+local BLIZZ_PANEL = {
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 },
+}
+
+-- Panel / sub-frame background in the current theme
+function W.Backdrop(f, alpha, light)
+    local S = W.Skin()
+    if S then S.Panel(f, { inset = not light }); return end
+    if not f.SetBackdrop then return end
+    if W.IsBlizzard() then
+        f:SetBackdrop(BLIZZ_PANEL)
+        f:SetBackdropColor(0.06, 0.06, 0.06, alpha or 0.9)
+        f:SetBackdropBorderColor(0.55, 0.55, 0.55, 1)
+        return
+    end
+    f:SetBackdrop({ bgFile = W.WHITE, edgeFile = W.WHITE, edgeSize = 1 })
+    if light then
+        f:SetBackdropColor(PAL.light[1], PAL.light[2], PAL.light[3], alpha or 0.95)
+    else
+        f:SetBackdropColor(PAL.panel[1], PAL.panel[2], PAL.panel[3], alpha or 0.97)
+    end
+    f:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1)
+end
+
+-- Window frame (main window and popups)
+function W.Shell(f, alpha)
+    local S = W.Skin()
+    if S then S.Shell(f); return end
+    if not f.SetBackdrop then return end
+    if W.IsBlizzard() then
+        f:SetBackdrop(BLIZZ_DIALOG)
+        f:SetBackdropColor(1, 1, 1, alpha or 1)
+        return
+    end
+    W.Backdrop(f, alpha or 0.97)
+end
+
+-- Thin accent line
+function W.Accent(f, point, h)
+    local t = f:CreateTexture(nil, "ARTWORK")
+    W.SetColor(t, W.R, W.G, W.B, 1)
+    t:SetHeight(h or 2)
+    local inset = W.IsBlizzard() and 5 or 1
+    t:SetPoint(point or "TOPLEFT", inset, point == "BOTTOMLEFT" and inset or -inset)
+    t:SetPoint(point == "BOTTOMLEFT" and "BOTTOMRIGHT" or "TOPRIGHT", -inset, point == "BOTTOMLEFT" and inset or -inset)
+    return t
+end
+
+function W.Tooltip(frame, title, lines)
+    frame:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(type(title) == "function" and title(self) or title, 1, 1, 1)
+        if lines then
+            for _, l in ipairs(lines) do GameTooltip:AddLine(l, 0.8, 0.8, 0.8, true) end
+        end
+        GameTooltip:Show()
+    end)
+    frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+-- Selected state for buttons used as tabs: accent bar under the button (every theme)
+function W.SetSelected(b, selected)
+    if not b.selBar then
+        b.selBar = b:CreateTexture(nil, "OVERLAY")
+        b.selBar:SetHeight(2)
+        b.selBar:SetPoint("BOTTOMLEFT", 3, W.IsBlizzard() and 3 or 1)
+        b.selBar:SetPoint("BOTTOMRIGHT", -3, W.IsBlizzard() and 3 or 1)
+    end
+    W.SetColor(b.selBar, W.R, W.G, W.B, 1)
+    b.selBar:SetShown(selected and true or false)
+    b.selected = selected
+    if not W.Skin() and not W.IsBlizzard() and b.SetBackdropBorderColor then
+        if selected then b:SetBackdropBorderColor(W.R, W.G, W.B, 1) else b:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1) end
+    end
+end
+
+function W.Button(parent, text, w, h, onClick, tip)
+    local b
+    local S = W.Skin()
+    if W.IsBlizzard() then
+        b = CreateFrame("Button", W.N("Btn"), parent, "UIPanelButtonTemplate")
+        W.Size(b, w, h or 22)
+        b:SetText(text)
+        local fs = b.GetFontString and b:GetFontString()
+        if fs and fs.SetFontObject then fs:SetFontObject("GameFontNormalSmall") end
+    else
+        b = CreateFrame("Button", W.N("Btn"), parent, W.BT)
+        W.Size(b, w, h or 22)
+        local fs = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("CENTER", 0, 0)
+        b:SetFontString(fs)
+        b:SetNormalFontObject("GameFontHighlightSmall")
+        b:SetDisabledFontObject("GameFontDisableSmall")
+        if S then
+            S.Button(b)
+            if S.StateButtonLabel then S.StateButtonLabel(b) end
+            if S.Font then S.Font(fs) end
+        else
+            W.Backdrop(b, 1, true)
+            b:HookScript("OnEnter", function(self)
+                if self:IsEnabled() then self:SetBackdropBorderColor(W.R, W.G, W.B, 1); self:SetBackdropColor(PAL.hover[1], PAL.hover[2], PAL.hover[3], 1) end
+            end)
+            b:HookScript("OnLeave", function(self)
+                if self.selected then self:SetBackdropBorderColor(W.R, W.G, W.B, 1) else self:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1) end
+                self:SetBackdropColor(PAL.light[1], PAL.light[2], PAL.light[3], 1)
+            end)
+        end
+        b:SetScript("OnMouseDown", function(self) if self:IsEnabled() then fs:SetPoint("CENTER", 1, -1) end end)
+        b:SetScript("OnMouseUp", function() fs:SetPoint("CENTER", 0, 0) end)
+        b:SetText(text)
+    end
+    if onClick then b:SetScript("OnClick", onClick) end
+    if tip then W.Tooltip(b, text, tip) end
+    return b
+end
+
+function W.Label(parent, text, font)
+    local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
+    fs:SetText(text or "")
+    fs:SetJustifyH("LEFT")
+    local S = W.Skin()
+    if S and S.Font then S.Font(fs) end
+    return fs
+end
+
+-- Module title: UPPERCASE + accent bar underneath
+function W.Title(parent, text)
+    local fs = W.Label(parent, W.Upper(text), "GameFontNormalLarge")
+    fs:SetFont(W.FONT, 15, W.IsBlizzard() and "" or "OUTLINE")
+    fs:SetPoint("TOPLEFT", 12, -8)
+    if W.IsBlizzard() then fs:SetTextColor(1, 0.82, 0) else fs:SetTextColor(1, 1, 1) end
+    local bar = parent:CreateTexture(nil, "ARTWORK")
+    W.SetColor(bar, W.R, W.G, W.B, 1)
+    W.Size(bar, 40, 2)
+    bar:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
+    -- faint line across the rest of the panel
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    W.SetColor(line, 1, 1, 1, 0.06)
+    line:SetHeight(1)
+    line:SetPoint("LEFT", bar, "RIGHT", 0, 0)
+    line:SetPoint("RIGHT", parent, "RIGHT", -12, 0)
+    return fs
+end
+
+function W.EditBox(parent, w, maxLetters)
+    local e = CreateFrame("EditBox", W.N("Edit"), parent, "InputBoxTemplate")
+    W.Size(e, w, 20)
+    e:SetAutoFocus(false)
+    e:SetMaxLetters(maxLetters or 40)
+    e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    local S = W.Skin()
+    if S then S.EditBox(e) end
+    return e
+end
+
+-- Checkbox bound to get/set; syncs itself when shown
+function W.Check(parent, text, get, set, tip)
+    local c = CreateFrame("CheckButton", W.N("Check"), parent, "UICheckButtonTemplate")
+    W.Size(c, 24, 24)
+    local fs = W.Label(c, text, "GameFontHighlightSmall")
+    fs:SetPoint("LEFT", c, "RIGHT", 2, 1)
+    c.label = fs
+    c:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
+    c:SetScript("OnShow", function(self) self:SetChecked(get() and true or false) end)
+    c.Sync = function(self) self:SetChecked(get() and true or false) end
+    if tip then W.Tooltip(c, text, tip) end
+    local S = W.Skin()
+    if S then S.Checkbox(c) end
+    return c
+end
+
+function W.Panel(parent, w, h)
+    local p = CreateFrame("Frame", nil, parent, W.BT)
+    W.Size(p, w, h)
+    W.Backdrop(p, 0.95, true)
+    if not W.Skin() then W.Accent(p, "TOPLEFT", 2) end
+    return p
+end
+
+function W.SkinScroll(sf)
+    local S = W.Skin()
+    local bar = sf.ScrollBar or (sf.GetName and sf:GetName() and _G[sf:GetName() .. "ScrollBar"])
+    if S and bar then S.ScrollBar(bar) end
+end
+
+-- Scrolling list with recycled rows (striped)
+function W.ScrollList(parent, w, h, rowH, makeRow)
+    local sf = CreateFrame("ScrollFrame", W.N("Scroll"), parent, "UIPanelScrollFrameTemplate")
+    W.Size(sf, w, h)
+    W.SkinScroll(sf)
+    local content = CreateFrame("Frame", nil, sf)
+    W.Size(content, w, h)
+    sf:SetScrollChild(content)
+    local list = { sf = sf, content = content, rows = {} }
+    function list:Row(i)
+        local r = self.rows[i]
+        if not r then
+            r = makeRow(content)
+            W.Size(r, w, rowH)
+            r:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(i - 1) * rowH)
+            if i % 2 == 0 and not r.stripe then
+                r.stripe = r:CreateTexture(nil, "BACKGROUND")
+                r.stripe:SetAllPoints()
+                W.SetColor(r.stripe, 1, 1, 1, 0.035)
+            end
+            self.rows[i] = r
+        end
+        r:Show()
+        return r
+    end
+    function list:Finish(n)
+        for i = n + 1, #self.rows do self.rows[i]:Hide() end
+        content:SetHeight(math.max(n * rowH, 1))
+    end
+    return list
+end
+
+function W.CloseButton(parent, size)
+    local close = CreateFrame("Button", nil, parent, "UIPanelCloseButton")
+    W.Size(close, size or 28, size or 28)
+    local S = W.Skin()
+    if S then S.CloseButton(close) end
+    return close
+end
+
+-- Small movable window (module popups)
+function W.Window(name, w, h, title)
+    local f = CreateFrame("Frame", name, UIParent, W.BT)
+    W.Size(f, w, h)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:SetClampedToScreen(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    W.Shell(f)
+    if W.IsFlat() then
+        local head = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+        W.SetColor(head, 0, 0, 0, 1)
+        head:SetPoint("TOPLEFT", 1, -1)
+        head:SetPoint("TOPRIGHT", -1, -1)
+        head:SetHeight(26)
+        local line = f:CreateTexture(nil, "ARTWORK")
+        W.SetColor(line, W.R, W.G, W.B, 1)
+        line:SetHeight(2)
+        line:SetPoint("TOPLEFT", head, "BOTTOMLEFT")
+        line:SetPoint("TOPRIGHT", head, "BOTTOMRIGHT")
+    end
+    f.title = W.Label(f, W.Upper(title or ""), "GameFontNormal")
+    f.title:SetPoint("TOP", 0, W.IsBlizzard() and -14 or -8)
+    if not W.IsBlizzard() then f.title:SetTextColor(1, 1, 1) end
+    local close = W.CloseButton(f)
+    close:SetPoint("TOPRIGHT", W.IsBlizzard() and -4 or 2, W.IsBlizzard() and -4 or 2)
+    f.close = close
+    f:Hide()
+    return f
+end
+
+-- Timer bar
+function W.TimerBar(parent, h)
+    local bar = CreateFrame("StatusBar", nil, parent)
+    bar:SetHeight(h or 14)
+    bar:SetStatusBarTexture(W.BAR_TEXTURE)
+    bar:SetStatusBarColor(W.R, W.G, W.B)
+    bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+    bar.bg:SetAllPoints()
+    W.SetColor(bar.bg, 0.08, 0.08, 0.10, 0.8)
+    bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bar.text:SetPoint("CENTER")
+    local S = W.Skin()
+    if S and S.ApplyBarFill then S.ApplyBarFill(bar) end
+    return bar
+end
+
+-- Multiline text popup (export / import)
+local textPopup
+function W.TextPopup(title, text, opts)
+    opts = opts or {}
+    if not textPopup then
+        local f = W.Window("WLRTTextPopup", 460, 300, "")
+        local nameLbl = W.Label(f, L("Name:"), "GameFontHighlightSmall")
+        nameLbl:SetPoint("TOPLEFT", 16, -36)
+        f.nameLbl = nameLbl
+        f.nameBox = W.EditBox(f, 200)
+        f.nameBox:SetPoint("LEFT", nameLbl, "RIGHT", 10, 0)
+        local sf = CreateFrame("ScrollFrame", W.N("TextScroll"), f, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", 16, -64)
+        sf:SetPoint("BOTTOMRIGHT", -34, 44)
+        W.SkinScroll(sf)
+        local boxBg = CreateFrame("Frame", nil, f, W.BT)
+        boxBg:SetPoint("TOPLEFT", sf, -6, 6)
+        boxBg:SetPoint("BOTTOMRIGHT", sf, 26, -6)
+        W.Backdrop(boxBg, 0.6)
+        sf:SetFrameLevel((boxBg:GetFrameLevel() or 1) + 2)
+        local box = CreateFrame("EditBox", nil, sf)
+        box:SetMultiLine(true)
+        box:SetAutoFocus(false)
+        box:SetFontObject("ChatFontNormal")
+        box:SetWidth(400)
+        box:SetHeight(180)
+        box:SetMaxLetters(0)
+        box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        sf:SetScrollChild(box)
+        sf:EnableMouse(true)
+        sf:SetScript("OnMouseDown", function() box:SetFocus() end)
+        f.box = box
+        f.status = W.Label(f, "", "GameFontHighlightSmall")
+        f.status:SetPoint("BOTTOMLEFT", 16, 18)
+        f.ok = W.Button(f, "OK", 110, 22)
+        f.ok:SetPoint("BOTTOMRIGHT", -16, 12)
+        f.extra = W.Button(f, "", 150, 22)
+        f.extra:SetPoint("RIGHT", f.ok, "LEFT", -8, 0)
+        tinsert(UISpecialFrames, "WLRTTextPopup")
+        textPopup = f
+    end
+    local f = textPopup
+    f.title:SetText(W.Upper(title))
+    f.status:SetText(opts.hint or "")
+    f.box:SetText(text or "")
+    if opts.showName then
+        f.nameLbl:Show(); f.nameBox:Show(); f.nameBox:SetText(opts.name or "")
+    else
+        f.nameLbl:Hide(); f.nameBox:Hide()
+    end
+    if opts.onExtra then
+        f.extra:SetText(opts.extraText or "")
+        f.extra:SetScript("OnClick", function() opts.onExtra(f) end)
+        f.extra:Show()
+    else
+        f.extra:Hide()
+    end
+    if opts.onConfirm then
+        f.ok:SetText(opts.confirmText or L("Import"))
+        f.ok:SetScript("OnClick", function()
+            local err = opts.onConfirm(f.box:GetText(), f.nameBox:GetText())
+            if err then f.status:SetText("|cffff5555" .. err .. "|r") else f:Hide() end
+        end)
+    else
+        f.ok:SetText(L("Close"))
+        f.ok:SetScript("OnClick", function() f:Hide() end)
+    end
+    f:Show()
+    f.box:SetFocus()
+    if text and text ~= "" then f.box:HighlightText() end
+end
+
+---------------------------------------------------------------------------
+-- Tabbed main window
+---------------------------------------------------------------------------
+W.modules = {}
+local byKey = {}
+function W.RegisterModule(key, label, build, refresh)
+    local m = { key = key, label = label, build = build, refresh = refresh }
+    W.modules[#W.modules + 1] = m
+    byKey[key] = m
+end
+
+local main, mini
+local MENU_W = 140
+
+local function SavePos()
+    local p, _, rp, x, y = main:GetPoint(1)
+    local ui = W.DB("ui")
+    ui.point, ui.relPoint, ui.x, ui.y = p, rp, x, y
+end
+
+-- Menu: 2 tabs on top (Raid / Guild). Raid holds collapsible sections (one open at a time, raid and
+-- PvP tools together), Guild lists its tools directly. English keys, translated when the window is built.
+-- Modules not listed go to the last section of the last tab.
+local CATEGORIES = {
+    { key = "pve", title = "Raid", sections = {
+        { key = "org", title = "Organisation", items = { "RaidGroups", "MarksBar", "InviteTool", "AutoPromote" } },
+        { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "AutoLog", "Focus", "Summon" } },
+        { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
+        { key = "bg", title = "Battleground", items = { "GYTimer" } },
+    } },
+    { key = "me", title = "Guild", sections = {
+        { key = "me", items = { "Guild", "Alts", "SimExport", "QualityOfLife", "VersionCheck" } },
+    } },
+}
+
+W.AddFR({
+    ["Language of the addon: French / English (needs a reload)."] = "Langue de l'addon : français / anglais (demande un rechargement).",
+    ["Organisation"] = "Organisation",
+    ["Preparation"] = "Préparation",
+    ["Combat"] = "Combat",
+    ["Loot"] = "Butin",
+    ["Raid"] = "Raid",
+    ["Battleground"] = "Champ de bataille",
+    ["Guild"] = "Guilde",
+    ["Guild & me"] = "Guilde & perso",
+    ["Raid Groups"] = "Groupes de raid",
+    ["Invite Tool"] = "Invitations",
+    ["Raid Inspect"] = "Inspection",
+    ["Auto Promote"] = "Promotion auto",
+    ["Marks Bar"] = "Barre de marques",
+})
+
+local function Contains(list, m)
+    for _, x in ipairs(list) do if x == m then return true end end
+    return false
+end
+
+-- tab (category) and section holding a module: the given ones if they do, else the first
+local function Locate(m, catKey, secKey)
+    local cats = main and main.categories or {}
+    for _, cat in ipairs(cats) do
+        if cat.key == catKey then
+            for _, sec in ipairs(cat.sections) do
+                if sec.key == secKey and Contains(sec.list, m) then return catKey, secKey end
+            end
+            for _, sec in ipairs(cat.sections) do
+                if Contains(sec.list, m) then return catKey, sec.key end
+            end
+        end
+    end
+    for _, cat in ipairs(cats) do
+        for _, sec in ipairs(cat.sections) do
+            if Contains(sec.list, m) then return cat.key, sec.key end
+        end
+    end
+end
+
+-- fromSection / fromCategory: where the clicked entry is (keeps it open)
+function W.Select(key, fromSection, fromCategory)
+    local m = byKey[key] or W.modules[1]
+    if not m then return end
+    for _, other in ipairs(W.modules) do
+        if other.panel then other.panel:Hide() end
+        for _, b in ipairs(other.buttons or {}) do b.sel:Hide(); b.text:SetTextColor(unpack(main.textColor)) end
+    end
+    if not m.panel then
+        m.panel = CreateFrame("Frame", nil, main.content)
+        m.panel:SetAllPoints()
+        -- built hidden: the Show below then runs every OnShow (check boxes, edit boxes and lists read
+        -- their saved values there). Built while shown, a tab opened its first time after a /reload
+        -- with every box unchecked and every text field empty.
+        m.panel:Hide()
+        m.build(m.panel)
+    end
+    m.panel:Show()
+    for _, b in ipairs(m.buttons or {}) do b.sel:Show(); b.text:SetTextColor(1, 1, 1) end
+    local ui = W.DB("ui")
+    ui.lastModule = m.key
+    -- the menu shows the tab and the section of the selected tool (PvP / Guild tabs have no
+    -- collapsible section: the open PvE section is kept for when you come back)
+    local cat, sec = Locate(m, fromCategory or ui.category, fromSection or ui.openSection)
+    if cat then
+        ui.category = cat
+        for _, c in ipairs(main.categories or {}) do
+            if c.key == cat and #c.sections > 1 then ui.openSection = sec end
+        end
+    end
+    if main.LayoutMenu then main.LayoutMenu() end
+    if m.refresh then m.refresh(m.panel) end
+end
+
+function W.BuildMain()
+    if main then return main end
+    local blizz, S = W.IsBlizzard(), W.Skin()
+    local IN = blizz and 11 or 1           -- inner edge of the frame border
+    main = CreateFrame("Frame", "WarLegendRaidToolFrame", UIParent, W.BT)
+    W.Size(main, 980, 640)
+    local ui = W.DB("ui")
+    if ui.point then
+        main:SetPoint(ui.point, UIParent, ui.relPoint or ui.point, ui.x or 0, ui.y or 0)
+    else
+        main:SetPoint("CENTER")
+    end
+    main:SetFrameStrata("HIGH")
+    main:SetMovable(true)
+    main:EnableMouse(true)
+    main:SetClampedToScreen(true)
+    main:RegisterForDrag("LeftButton")
+    main:SetScript("OnDragStart", main.StartMoving)
+    main:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePos() end)
+    W.Shell(main, 0.97)
+    tinsert(UISpecialFrames, "WarLegendRaidToolFrame")
+    main.textColor = blizz and { 1, 0.82, 0 } or { 0.72, 0.72, 0.72 }
+
+    -- Header: WAR (white) LEGEND (red) logo, like warlegend.net
+    if not S then
+        local head = main:CreateTexture(nil, "BACKGROUND", nil, 1)
+        W.SetColor(head, 0, 0, 0, blizz and 0.55 or 1)
+        head:SetPoint("TOPLEFT", IN, -IN)
+        head:SetPoint("TOPRIGHT", -IN, -IN)
+        head:SetHeight(34 - IN)
+        if head.SetGradient and CreateColor and not blizz then
+            head:SetColorTexture(1, 1, 1, 1)
+            head:SetGradient("VERTICAL", CreateColor(PAL.headTop[1], PAL.headTop[2], PAL.headTop[3], 1), CreateColor(PAL.headBottom[1], PAL.headBottom[2], PAL.headBottom[3], 1))
+        end
+    end
+    local line = main:CreateTexture(nil, "ARTWORK")
+    W.SetColor(line, W.R, W.G, W.B, 1)
+    line:SetHeight(2)
+    line:SetPoint("TOPLEFT", IN, -34)
+    line:SetPoint("TOPRIGHT", -IN, -34)
+    -- skull logo, then WAR LEGEND
+    local skull = main:CreateTexture(nil, "OVERLAY")
+    W.Size(skull, 26, 26)
+    skull:SetTexture(W.LOGO_TEX)
+    skull:SetPoint("TOPLEFT", 10 + (blizz and 4 or 0), -4 - (blizz and 3 or 0))
+    local logo = main:CreateFontString(nil, "OVERLAY")
+    logo:SetFont(W.FONT, 20, "OUTLINE")
+    logo:SetPoint("LEFT", skull, "RIGHT", 6, 0)
+    logo:SetText(W.LOGO)
+    local sub = main:CreateFontString(nil, "OVERLAY")
+    sub:SetFont(W.FONT, 11, "OUTLINE")
+    sub:SetPoint("BOTTOMLEFT", logo, "BOTTOMRIGHT", 8, 2)
+    sub:SetText("|cffccccccRAIDTOOL|r  |cff777777v" .. W.version .. "|r")
+    local close = W.CloseButton(main, 30)
+    close:SetPoint("TOPRIGHT", blizz and -6 or 0, blizz and -6 or 0)
+    -- style selector (needs a reload)
+    local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WarLegend" }, { "sashoof", "Style: SashoofUI" } }
+    local styleBtn = W.Cycle(main, 140, styles, function() return W.DB("ui").style or "auto" end, function(v)
+        W.DB("ui").style = v
+        W.ConfirmReload(L("Reload the interface to apply the new style?"))
+    end, { L("Follows your interface: EllesmereUI when installed, else the Blizzard look.") })
+    styleBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -6, -4)
+    W.Size(styleBtn, 140, 20)
+    -- language: FR / EN (needs a reload); shows the language that will be used
+    local function NextLang()
+        local cur = W.DB("ui").lang
+        if cur ~= "fr" and cur ~= "en" then cur = W.LANG end
+        return cur
+    end
+    local langBtn
+    langBtn = W.Button(main, NextLang() == "fr" and "FR" or "EN", 40, 20, function()
+        local nxt = NextLang() == "fr" and "en" or "fr"
+        W.DB("ui").lang = nxt
+        langBtn:SetText(nxt == "fr" and "FR" or "EN")
+        W.ConfirmReload(nxt == "fr" and "Recharger l'interface pour passer l'addon en français ?"
+            or "Reload the interface to switch the addon to English?")
+    end, { L("Language of the addon: French / English (needs a reload).") })
+    langBtn:SetPoint("RIGHT", styleBtn, "LEFT", -6, 0)
+
+    -- Menu column
+    local side = main:CreateTexture(nil, "BACKGROUND", nil, 1)
+    W.SetColor(side, 0, 0, 0, S and 0.25 or (blizz and 0.35 or 1))
+    if not S and not blizz then W.SetColor(side, PAL.side[1], PAL.side[2], PAL.side[3], 1) end
+    side:SetPoint("TOPLEFT", IN, -36)
+    side:SetPoint("BOTTOMLEFT", IN, IN)
+    side:SetWidth(MENU_W + 3 - IN)
+    local sep = main:CreateTexture(nil, "BORDER")
+    W.SetColor(sep, 1, 1, 1, 0.08)
+    sep:SetPoint("TOPLEFT", MENU_W + 4, -36)
+    sep:SetPoint("BOTTOMLEFT", MENU_W + 4, IN)
+    sep:SetWidth(1)
+    local foot = main:CreateFontString(nil, "OVERLAY")
+    foot:SetFont(W.FONT, 10, "OUTLINE")
+    foot:SetPoint("BOTTOMLEFT", 12 + (blizz and 4 or 0), 10 + (blizz and 4 or 0))
+    foot:SetText("|cff666666WARLEGEND|r|cff8a1210.NET|r")
+
+    -- tabs -> sections -> modules (a module may be listed twice)
+    local cats, placed = {}, {}
+    for _, c in ipairs(CATEGORIES) do
+        local cat = { key = c.key, title = c.title, short = c.short, pvp = c.pvp, sections = {} }
+        for _, s in ipairs(c.sections) do
+            local list = {}
+            for _, key in ipairs(s.items) do
+                if byKey[key] then list[#list + 1] = byKey[key]; placed[key] = true end
+            end
+            cat.sections[#cat.sections + 1] = { key = s.key, title = s.title, list = list, buttons = {} }
+        end
+        cats[#cats + 1] = cat
+    end
+    local lastCat = cats[#cats]
+    for _, m in ipairs(W.modules) do
+        if not placed[m.key] then table.insert(lastCat.sections[#lastCat.sections].list, m) end
+    end
+    main.categories = cats
+
+    local BTN_W = MENU_W - 4 - IN
+    local function EntryButton(m, sec, cat)
+        local b = CreateFrame("Button", nil, main)
+        W.Size(b, BTN_W, 21)
+        local hl = b:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        W.SetColor(hl, 1, 1, 1, 0.07)
+        -- active tab: tinted background + accent bar on the left
+        b.sel = CreateFrame("Frame", nil, b)
+        b.sel:SetAllPoints()
+        local selBg = b.sel:CreateTexture(nil, "BACKGROUND")
+        selBg:SetAllPoints()
+        W.SetColor(selBg, W.R, W.G, W.B, 0.2)
+        if selBg.SetGradient and CreateColor then
+            selBg:SetColorTexture(1, 1, 1, 1)
+            selBg:SetGradient("HORIZONTAL", CreateColor(W.R, W.G, W.B, 0.35), CreateColor(W.R, W.G, W.B, 0))
+        end
+        local selBar = b.sel:CreateTexture(nil, "ARTWORK")
+        W.SetColor(selBar, W.R, W.G, W.B, 1)
+        selBar:SetPoint("TOPLEFT"); selBar:SetPoint("BOTTOMLEFT"); selBar:SetWidth(3)
+        b.sel:Hide()
+        b.text = b:CreateFontString(nil, "OVERLAY")
+        b.text:SetFont(W.FONT, 11, "")
+        b.text:SetPoint("LEFT", 18, 0) -- indented under its section
+        b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
+        b.text:SetTextColor(unpack(main.textColor))
+        b:SetScript("OnClick", function() W.Select(m.key, sec.key, cat.key) end)
+        m.buttons = m.buttons or {}
+        m.buttons[#m.buttons + 1] = b
+        b:Hide()
+        return b
+    end
+
+    local LayoutMenu
+    -- the 2 tabs on top: Raid / Guild, sharing the width
+    local tabW = { math.floor((BTN_W - 4) / 2), BTN_W - 4 - math.floor((BTN_W - 4) / 2) }
+    local tx = IN + 3
+    for i, cat in ipairs(cats) do
+        local t = CreateFrame("Button", nil, main)
+        W.Size(t, tabW[i] or 40, 22)
+        t:SetPoint("TOPLEFT", tx, -42)
+        tx = tx + (tabW[i] or 40) + 2
+        local bg = t:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        W.SetColor(bg, 1, 1, 1, 0.05)
+        local hl = t:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        W.SetColor(hl, 1, 1, 1, 0.08)
+        local r, g, b = W.R, W.G, W.B
+        if cat.pvp then r, g, b = 0.35, 0.65, 1 end
+        t.on = t:CreateTexture(nil, "BORDER")
+        t.on:SetAllPoints()
+        W.SetColor(t.on, r, g, b, 0.3)
+        t.line = t:CreateTexture(nil, "ARTWORK")
+        W.SetColor(t.line, r, g, b, 1)
+        t.line:SetPoint("BOTTOMLEFT"); t.line:SetPoint("BOTTOMRIGHT"); t.line:SetHeight(2)
+        t.text = t:CreateFontString(nil, "OVERLAY")
+        t.text:SetFont(W.FONT, 10, "OUTLINE")
+        t.text:SetPoint("CENTER")
+        t.text:SetText(W.Upper(L(cat.short or cat.title)))
+        if cat.short then W.Tooltip(t, L(cat.title)) end
+        t:SetScript("OnClick", function()
+            W.DB("ui").category = cat.key
+            LayoutMenu()
+        end)
+        cat.tab = t
+    end
+
+    for _, cat in ipairs(cats) do
+        for _, sec in ipairs(cat.sections) do
+            if #sec.list > 0 and sec.title then
+                -- section header (PvE): click to open / close (accordion)
+                local h = CreateFrame("Button", nil, main)
+                W.Size(h, BTN_W, 20)
+                local hbg = h:CreateTexture(nil, "BACKGROUND")
+                hbg:SetAllPoints()
+                W.SetColor(hbg, 1, 1, 1, 0.04)
+                local hhl = h:CreateTexture(nil, "HIGHLIGHT")
+                hhl:SetAllPoints()
+                W.SetColor(hhl, 1, 1, 1, 0.08)
+                h.text = h:CreateFontString(nil, "OVERLAY")
+                h.text:SetFont(W.FONT, 10, "OUTLINE")
+                h.text:SetPoint("LEFT", 8, 0)
+                h.text:SetText(W.Upper(L(sec.title)))
+                h.text:SetTextColor(W.R, W.G, W.B)
+                h.sign = h:CreateTexture(nil, "OVERLAY")
+                W.Size(h.sign, 12, 12)
+                h.sign:SetPoint("RIGHT", -6, 0)
+                h:SetScript("OnClick", function()
+                    local ui = W.DB("ui")
+                    ui.openSection = ui.openSection ~= sec.key and sec.key or nil
+                    LayoutMenu()
+                end)
+                sec.header = h
+            end
+            for _, m in ipairs(sec.list) do sec.buttons[#sec.buttons + 1] = EntryButton(m, sec, cat) end
+        end
+    end
+
+    -- shows the chosen tab: its section headers and the entries of the open section
+    function LayoutMenu()
+        local ui = W.DB("ui")
+        local current = ui.category or cats[1].key
+        local y = -70
+        for _, cat in ipairs(cats) do
+            local active = cat.key == current
+            cat.tab.on:SetShown(active)
+            cat.tab.line:SetShown(active)
+            cat.tab.text:SetTextColor(active and 1 or 0.7, active and 1 or 0.7, active and 1 or 0.7)
+            for _, sec in ipairs(cat.sections) do
+                local isOpen = true
+                if sec.header then
+                    isOpen = sec.key == ui.openSection
+                    sec.header:SetShown(active)
+                    if active then
+                        sec.header:ClearAllPoints()
+                        sec.header:SetPoint("TOPLEFT", IN + 3, y)
+                        sec.header.sign:SetTexture(isOpen and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
+                        y = y - 22
+                    end
+                end
+                for _, b in ipairs(sec.buttons) do
+                    if active and isOpen then
+                        b:ClearAllPoints()
+                        b:SetPoint("TOPLEFT", IN + 3, y)
+                        b:Show()
+                        y = y - 22
+                    else
+                        b:Hide()
+                    end
+                end
+                if active and sec.header then y = y - 4 end
+            end
+        end
+    end
+    main.LayoutMenu = LayoutMenu
+
+    main.content = CreateFrame("Frame", nil, main)
+    main.content:SetPoint("TOPLEFT", MENU_W + 10, -42)
+    main.content:SetPoint("BOTTOMRIGHT", -8 - (blizz and 8 or 0), 8 + (blizz and 6 or 0))
+
+    main:SetScript("OnShow", function()
+        local cur = byKey[W.DB("ui").lastModule]
+        W.Select(cur and cur.key or W.modules[1].key)
+    end)
+    main:Hide()
+    return main
+end
+
+function W.Toggle(key)
+    if not W.Allowed() then W.Denied(); return end
+    W.LoadRaid() -- the menu is built once, with the raid tools in it
+    W.BuildMain()
+    if key then
+        W.DB("ui").lastModule = key
+        if main:IsShown() then W.Select(key) else main:Show() end
+        return
+    end
+    if main:IsShown() then main:Hide() else main:Show() end
+end
+
+function W.Hide()
+    if main then main:Hide() end
+    if mini then mini:Hide() end
+end
+
+function W.IsShown(key)
+    return main and main:IsShown() and W.DB("ui").lastModule == key
+end
+
+---------------------------------------------------------------------------
+-- Minimap button (Blizzard texture)
+---------------------------------------------------------------------------
+local function MiniPos()
+    local a = math.rad(W.DB("minimap").angle or 200)
+    local r = (Minimap:GetWidth() / 2) + 8
+    mini:ClearAllPoints()
+    mini:SetPoint("CENTER", Minimap, "CENTER", math.cos(a) * r, math.sin(a) * r)
+end
+
+function W.UpdateMinimap()
+    if not mini then return end
+    if W.DB("minimap").hide then mini:Hide() else MiniPos(); mini:Show() end
+end
+
+local function CreateMinimapButton()
+    if mini then return end
+    mini = CreateFrame("Button", "WarLegendRaidToolMinimap", Minimap)
+    W.Size(mini, 31, 31)
+    mini:SetFrameStrata("MEDIUM")
+    mini:SetFrameLevel(8)
+    mini:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    -- War Legend skull on the usual dark round minimap background
+    local back = mini:CreateTexture(nil, "BACKGROUND")
+    W.Size(back, 20, 20)
+    back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    back:SetPoint("TOPLEFT", 6, -5)
+    local icon = mini:CreateTexture(nil, "ARTWORK")
+    W.Size(icon, 18, 18)
+    icon:SetTexture(W.LOGO_SMALL)
+    icon:SetPoint("TOPLEFT", 7, -6)
+    local border = mini:CreateTexture(nil, "OVERLAY")
+    W.Size(border, 53, 53)
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetPoint("TOPLEFT")
+    mini:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    mini:RegisterForDrag("LeftButton")
+    mini:SetScript("OnClick", function(_, btn)
+        if btn == "RightButton" then W.LoadRaid() end
+        if btn == "RightButton" and W.ApplySelectedPreset then
+            W.ApplySelectedPreset()
+        else
+            W.Toggle()
+        end
+    end)
+    mini:SetScript("OnDragStart", function(self)
+        self:SetScript("OnUpdate", function()
+            local mx, my = Minimap:GetCenter()
+            local cx, cy = GetCursorPosition()
+            local sc = Minimap:GetEffectiveScale()
+            W.DB("minimap").angle = math.deg(math.atan2(cy / sc - my, cx / sc - mx))
+            MiniPos()
+        end)
+    end)
+    mini:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+    W.Tooltip(mini, W.LOGO .. " RaidTool", {
+        L("Left-click: open"), L("Right-click: apply selected preset"), L("Drag: move") })
+    W.UpdateMinimap()
+end
+
+---------------------------------------------------------------------------
+-- Slash commands
+---------------------------------------------------------------------------
+W.slash = {}
+
+-- /wl perf: what the addon really costs (memory, and CPU when the client has the addon profiler)
+W.AddFR({
+    ["Memory: %.0f KB"] = "Mémoire : %.0f Ko",
+    ["CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"] =
+        "CPU : %.3f ms par image (récent), %.3f ms (dernier boss), pic %.2f ms",
+    ["CPU: this client has no addon profiler."] = "CPU : ce client n'a pas de profileur d'addons.",
+})
+W.slash.perf = function()
+    if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
+        UpdateAddOnMemoryUsage()
+        W.Print(string.format(L("Memory: %.0f KB"), GetAddOnMemoryUsage(ADDON) or 0))
+    end
+    local P, M = C_AddOnProfiler, Enum and Enum.AddOnProfilerMetric
+    if P and P.GetAddOnMetric and M then
+        local function get(metric) return (metric and P.GetAddOnMetric(ADDON, metric)) or 0 end
+        W.Print(string.format(L("CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"),
+            get(M.RecentAverageTime), get(M.EncounterAverageTime), get(M.PeakTime)))
+    else
+        W.Print(L("CPU: this client has no addon profiler."))
+    end
+end
+
+-- /wl reset [data]: puts one module's saved data back to zero (a damaged module), keeps the rest
+W.AddFR({
+    ["Saved data: %s. |cffffffff/wl reset <name>|r resets one of them."] =
+        "Données sauvegardées : %s. |cffffffff/wl reset <nom>|r en remet une à zéro.",
+    ["Reset the saved data \"%s\"? The interface reloads after."] =
+        "Remettre à zéro les données « %s » ? L'interface se recharge ensuite.",
+    ["Data reset. Reload the interface to finish."] = "Données remises à zéro. Recharge l'interface pour terminer.",
+})
+W.slash.reset = function(rest)
+    local key = (rest or ""):match("^(%S+)")
+    if not key or type(W.db[key]) ~= "table" then
+        local keys = {}
+        for k, v in pairs(W.db) do if type(v) == "table" then keys[#keys + 1] = k end end
+        table.sort(keys)
+        W.Print(string.format(L("Saved data: %s. |cffffffff/wl reset <name>|r resets one of them."), table.concat(keys, ", ")))
+        return
+    end
+    W.Confirm(string.format(L("Reset the saved data \"%s\"? The interface reloads after."), key), function()
+        W.db[key] = nil
+        W.ConfirmReload(L("Data reset. Reload the interface to finish."))
+    end)
+end
+
+local function Slash(msg)
+    if not W.Allowed() then W.Denied(); return end
+    msg = msg or ""
+    local cmd, rest = msg:match("^(%S*)%s*(.-)$")
+    cmd = (cmd or ""):lower()
+    if cmd ~= "" and cmd ~= "minimap" and not W.slash[cmd] then W.LoadRaid() end -- a raid command
+    if cmd == "" then
+        W.Toggle()
+    elseif cmd == "minimap" then
+        local m = W.DB("minimap")
+        m.hide = not m.hide
+        W.UpdateMinimap()
+    elseif W.slash[cmd] then
+        W.slash[cmd](rest)
+    else
+        W.Print(L("|cffffff00/wl|r: open the window"))
+        W.Print(L("/wl apply [preset]: marks + groups  |  /wl marks | groups [preset]"))
+        W.Print(L("/wl clear: clear marks  |  /wl list  |  /wl minimap"))
+        W.Print(L("/rc: start a ready check  |  /wl assist: create my assist macro  |  /wl logdebug"))
+        W.Print("/wl perf")
+    end
+end
+SLASH_WARLEGENDRT1 = "/wl"
+SLASH_WARLEGENDRT2 = "/wlrt"
+SLASH_WARLEGENDRT3 = "/warlegend"
+SlashCmdList["WARLEGENDRT"] = Slash
+
+-- /rc exists before the raid addon is loaded; its real handler (ReadyCheck.lua) replaces this one
+SLASH_WLRTREADYCHECK1 = "/rc"
+local ReadyCheckStub
+function ReadyCheckStub()
+    if not W.Allowed() then W.Denied(); return end
+    W.LoadRaid()
+    local real = SlashCmdList["WLRTREADYCHECK"]
+    if real and real ~= ReadyCheckStub then real() end
+end
+SlashCmdList["WLRTREADYCHECK"] = ReadyCheckStub
+
+W.On("PLAYER_LOGIN", function()
+    CreateMinimapButton()
+    W.Print(W.LOGO .. " RaidTool v" .. W.version .. L(" loaded. |cffffffff/wl|r to open."))
+end)

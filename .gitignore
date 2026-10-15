@@ -1,0 +1,8 @@
+/*
+!/WarLegendRaidTool/
+!/WarLegendRaidTool_Raid/
+!/.gitignore
+!/.gitattributes
+/WarLegendRaidTool/*.rar
+/WarLegendRaidTool/*.zip
+*.bak

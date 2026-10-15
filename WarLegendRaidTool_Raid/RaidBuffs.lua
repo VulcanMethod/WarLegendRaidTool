@@ -1,0 +1,362 @@
+-- WarLegend RaidTool - Raid buff assignments (L3FTools style)
+-- Give each mage / priest / druid the groups they buff, each paladin a blessing; send it
+-- (raid chat + a popup on the casters' screens) and check who is missing what.
+local W = WLRT
+W.AddFR({
+    ["Raid Buffs"] = "Buffs de raid",
+    ["Arcane Intellect"] = "Intelligence des arcanes",
+    ["Fortitude"] = "Robustesse",
+    ["Divine Spirit"] = "Esprit divin",
+    ["Shadow Protection"] = "Protection contre l'ombre",
+    ["Mark of the Wild"] = "Marque du fauve",
+    ["Paladin blessings"] = "Bénédictions de paladin",
+    ["Might"] = "Puissance",
+    ["Wisdom"] = "Sagesse",
+    ["Kings"] = "Rois",
+    ["Salvation"] = "Salut",
+    ["Light"] = "Lumière",
+    ["Auto assign"] = "Répartition auto",
+    ["Send assignments"] = "Envoyer les assignations",
+    ["Check missing"] = "Vérifier les manquants",
+    ["Report missing to raid"] = "Annoncer les manquants au raid",
+    ["Clear"] = "Effacer",
+    ["Nobody of this class in the raid."] = "Personne de cette classe dans le raid.",
+    ["Your buffs"] = "Tes buffs",
+    ["groups"] = "groupes",
+    ["everyone"] = "tout le monde",
+    ["Everyone has their buffs."] = "Tout le monde a ses buffs.",
+    ["Buffs are hidden by the game right now (combat?)."] = "Les buffs sont cachés par le jeu pour le moment (combat ?).",
+    ["missing"] = "manquant",
+    ["Post the assignments in raid chat too"] = "Poster aussi les assignations dans le canal raid",
+    ["Click G1..G8 to give a group to a caster. Paladins: click the blessing to change it."] =
+        "Clique G1..G8 pour donner un groupe à un buffer. Paladins : clique la bénédiction pour la changer.",
+})
+local L = W.L
+
+local RB = {}
+W.RaidBuffs = RB
+local PREFIX = "WLRT_BUFF"
+local db
+
+local BUFFS = {
+    { key = "int", class = "MAGE", text = L("Arcane Intellect"), ids = { 1459, 1460, 1461, 10156, 10157, 23028 } },
+    { key = "fort", class = "PRIEST", text = L("Fortitude"), ids = { 1243, 1244, 1245, 2791, 10937, 10938, 21562, 21564 } },
+    { key = "spirit", class = "PRIEST", text = L("Divine Spirit"), ids = { 14752, 14818, 14819, 27841, 27681 } },
+    { key = "shadow", class = "PRIEST", text = L("Shadow Protection"), ids = { 976, 10957, 10958, 27683 } },
+    { key = "motw", class = "DRUID", text = L("Mark of the Wild"), ids = { 1126, 5232, 6756, 5234, 8907, 9884, 9885, 21849, 21850 } },
+}
+local BLESS = {
+    { key = "kings", text = L("Kings"), ids = { 20217, 25898 } },
+    { key = "wisdom", text = L("Wisdom"), ids = { 19742, 19850, 19852, 19853, 19854, 25290, 25894, 25918 } },
+    { key = "might", text = L("Might"), ids = { 19740, 19834, 19835, 19836, 19837, 19838, 25291, 25782, 25916 } },
+    { key = "salvation", text = L("Salvation"), ids = { 1038, 25895 } },
+    { key = "light", text = L("Light"), ids = { 19977, 19978, 19979, 25890 } },
+}
+W.TranslateField(BUFFS, "text")
+W.TranslateField(BLESS, "text")
+local BUFF_BY, BLESS_BY, SPELL_TO = {}, {}, {}
+for _, b in ipairs(BUFFS) do BUFF_BY[b.key] = b; for _, id in ipairs(b.ids) do SPELL_TO[id] = b.key end end
+for _, b in ipairs(BLESS) do BLESS_BY[b.key] = b; for _, id in ipairs(b.ids) do SPELL_TO[id] = b.key end end
+
+W.OnReady(function()
+    db = W.DB("buffs", { chat = true })
+    if type(db.assign) ~= "table" then db.assign = {} end
+    if type(db.bless) ~= "table" then db.bless = {} end
+end)
+
+-- Raid members: { name, class, group, unit } - name is "First Surname" on Forever, so two
+-- casters sharing a first name keep their own assignment
+local function Members()
+    local list = {}
+    if W.InRaid() then
+        for i = 1, W.NumRaid() do
+            local _, _, group, _, _, class = GetRaidRosterInfo(i)
+            local u = "raid" .. i
+            local name = W.UnitDisplayName(u)
+            if name then list[#list + 1] = { name = name, class = class, group = group or 1, unit = u } end
+        end
+    else
+        for _, u in ipairs(W.GroupUnits()) do
+            local n = W.UnitDisplayName(u)
+            if n then list[#list + 1] = { name = n, class = W.UnitClassToken(u), group = 1, unit = u } end
+        end
+        if #list == 0 then list[1] = { name = W.UnitDisplayName("player") or "?", class = W.UnitClassToken("player"), group = 1, unit = "player" } end
+    end
+    return list
+end
+
+local function Casters(class, members)
+    local out = {}
+    for _, m in ipairs(members) do if m.class == class then out[#out + 1] = m.name end end
+    table.sort(out)
+    return out
+end
+
+local function UsedGroups(members)
+    local g = {}
+    for _, m in ipairs(members) do g[m.group] = true end
+    local out = {}
+    for i = 1, 8 do if g[i] then out[#out + 1] = i end end
+    return out
+end
+
+local function Assign(key) db.assign[key] = db.assign[key] or {}; return db.assign[key] end
+
+function RB.AutoAssign()
+    local members = Members()
+    local groups = UsedGroups(members)
+    for _, b in ipairs(BUFFS) do
+        local casters = Casters(b.class, members)
+        local a = {}
+        if #casters > 0 then
+            -- groups split evenly: 1-2 to the first caster, 3-4 to the next...
+            for i, g in ipairs(groups) do
+                local c = casters[math.floor((i - 1) * #casters / #groups) + 1]
+                a[c] = a[c] or {}
+                a[c][g] = true
+            end
+        end
+        db.assign[b.key] = a
+    end
+    local paladins = Casters("PALADIN", members)
+    wipe(db.bless)
+    for i, p in ipairs(paladins) do db.bless[p] = BLESS[((i - 1) % #BLESS) + 1].key end
+    RB.Refresh()
+end
+
+local function GroupText(set)
+    local t = {}
+    for g = 1, 8 do if set[g] then t[#t + 1] = g end end
+    if #t == 8 then return L("everyone") end
+    return "G" .. table.concat(t, ",")
+end
+
+-- Text lines of every assignment, and each caster's own text
+function RB.Lines()
+    local lines, perCaster = {}, {}
+    local members = Members()
+    local present = {}
+    for _, m in ipairs(members) do present[m.name] = true end
+    for _, b in ipairs(BUFFS) do
+        local parts = {}
+        for caster, set in pairs(Assign(b.key)) do
+            if present[caster] and next(set) then
+                local gt = GroupText(set)
+                parts[#parts + 1] = caster .. " " .. gt
+                perCaster[caster] = (perCaster[caster] and (perCaster[caster] .. " | ") or "") .. b.text .. ": " .. gt
+            end
+        end
+        table.sort(parts)
+        if #parts > 0 then lines[#lines + 1] = b.text .. ": " .. table.concat(parts, ", ") end
+    end
+    local bl = {}
+    for p, key in pairs(db.bless) do
+        if present[p] and BLESS_BY[key] then
+            bl[#bl + 1] = p .. " " .. BLESS_BY[key].text
+            perCaster[p] = (perCaster[p] and (perCaster[p] .. " | ") or "") .. L("Paladin blessings") .. ": " .. BLESS_BY[key].text
+        end
+    end
+    table.sort(bl)
+    if #bl > 0 then lines[#lines + 1] = L("Paladin blessings") .. ": " .. table.concat(bl, ", ") end
+    return lines, perCaster
+end
+
+function RB.Send()
+    local lines, perCaster = RB.Lines()
+    if db.chat and W.Channel() then
+        for _, l in ipairs(lines) do W.Announce(l, W.Channel()) end
+    end
+    for caster, text in pairs(perCaster) do W.Queue(PREFIX, W.Pack("A", caster, text)) end
+end
+
+-- Popup on the caster's screen
+local popup
+W.OnAddon(PREFIX, function(msg, from, _, full)
+    local t = W.Unpack(msg)
+    if t[1] ~= "A" or not W.IsGroupLead(full or from) then return end
+    -- full name match; a bare first name (older version of the addon) still matches mine
+    local target = (t[2] or ""):lower()
+    if target ~= (W.UnitDisplayName("player") or ""):lower()
+        and (W.HasFullPart(t[2] or "") or target ~= (W.Safe(UnitName("player")) or ""):lower()) then return end
+    db.mine = t[3]
+    if not popup then
+        popup = W.Window("WLRTBuffPopup", 420, 90, L("Your buffs"))
+        popup:SetPoint("TOP", 0, -140)
+        popup.text = W.Label(popup, "", "GameFontHighlight")
+        popup.text:SetPoint("TOPLEFT", 14, -38)
+        popup.text:SetWidth(392)
+    end
+    popup.text:SetText(((t[3] or ""):gsub(" | ", "\n")))
+    popup:SetHeight(50 + popup.text:GetHeight())
+    popup:Show()
+    W.Print(L("Your buffs") .. ": " .. (t[3] or ""))
+    W.After(30, function() popup:Hide() end)
+end)
+
+-- Who misses which buff (spell IDs, every rank)
+function RB.Missing()
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then return nil end
+    local members = Members()
+    local miss = {}
+    local activeBless = {}
+    for p, key in pairs(db.bless) do activeBless[key] = p end
+    for _, m in ipairs(members) do
+        if UnitExists(m.unit) and (not UnitIsConnected or UnitIsConnected(m.unit)) and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(m.unit)) then
+            local has = {}
+            for i = 1, 40 do
+                local a = W.AuraByIndex(m.unit, i, "HELPFUL") -- false: secret, refused to addons
+                if a == nil then break end
+                if a then
+                    local ok, id = pcall(function() return a.spellId end)
+                    id = ok and W.Safe(id)
+                    if id and SPELL_TO[id] then has[SPELL_TO[id]] = true end
+                end
+            end
+            for _, b in ipairs(BUFFS) do
+                local caster
+                for c, set in pairs(Assign(b.key)) do if set[m.group] then caster = c end end
+                if caster and not has[b.key] then
+                    miss[#miss + 1] = { buff = b.text, name = m.name, group = m.group, caster = caster }
+                end
+            end
+            for key, p in pairs(activeBless) do
+                if not has[key] and BLESS_BY[key] then
+                    miss[#miss + 1] = { buff = BLESS_BY[key].text, name = m.name, group = m.group, caster = p }
+                end
+            end
+        end
+    end
+    return miss
+end
+
+local function MissingLines()
+    local miss = RB.Missing()
+    if not miss then return nil end
+    local by = {}
+    local order = {}
+    for _, x in ipairs(miss) do
+        local k = x.buff .. " (" .. x.caster .. ")"
+        if not by[k] then by[k] = {}; order[#order + 1] = k end
+        table.insert(by[k], x.name)
+    end
+    local lines = {}
+    for _, k in ipairs(order) do lines[#lines + 1] = k .. " " .. L("missing") .. ": " .. table.concat(by[k], ", ") end
+    return lines
+end
+
+function RB.Check(toRaid)
+    local lines = MissingLines()
+    if not lines then W.Print(L("Buffs are hidden by the game right now (combat?).")); return end
+    if #lines == 0 then W.Print(L("Everyone has their buffs.")); return end
+    for _, l in ipairs(lines) do
+        if toRaid and W.Channel() then W.Announce(l, W.Channel()) else W.Print(l) end
+    end
+end
+
+-- Panel
+local UI = {}
+local ROW_H = 24
+
+local function MakeRow(content)
+    local r = CreateFrame("Frame", nil, content)
+    r.label = W.Label(r, "", "GameFontHighlightSmall")
+    r.label:SetPoint("LEFT", 8, 0)
+    r.label:SetWidth(160)
+    r.groups = {}
+    for g = 1, 8 do
+        local b = W.Button(r, "G" .. g, 38, 20, function()
+            local a = Assign(r.buff)
+            a[r.caster] = a[r.caster] or {}
+            if a[r.caster][g] then
+                a[r.caster][g] = nil
+            else
+                for _, set in pairs(a) do set[g] = nil end -- one caster per group
+                a[r.caster][g] = true
+            end
+            RB.Refresh()
+        end)
+        b:SetPoint("LEFT", 170 + (g - 1) * 42, 0)
+        r.groups[g] = b
+    end
+    r.bless = W.Button(r, "", 140, 20, function()
+        local cur, idx = db.bless[r.caster], 0
+        for i, b in ipairs(BLESS) do if b.key == cur then idx = i end end
+        db.bless[r.caster] = BLESS[(idx % #BLESS) + 1].key
+        RB.Refresh()
+    end)
+    r.bless:SetPoint("LEFT", 170, 0)
+    return r
+end
+
+function RB.Refresh()
+    if not UI.list or not UI.list.sf:IsVisible() then return end
+    local members = Members()
+    local groups = {}
+    for _, g in ipairs(UsedGroups(members)) do groups[g] = true end
+    local i = 0
+    local function row() i = i + 1; local r = UI.list:Row(i); return r end
+    local function header(text, class)
+        local r = row()
+        r.label:SetText(W.ColorName(W.Upper(text), class))
+        for g = 1, 8 do r.groups[g]:Hide() end
+        r.bless:Hide()
+    end
+    for _, b in ipairs(BUFFS) do
+        header(b.text, b.class)
+        local casters = Casters(b.class, members)
+        if #casters == 0 then
+            local r = row()
+            r.label:SetText("|cff777777  " .. L("Nobody of this class in the raid.") .. "|r")
+            for g = 1, 8 do r.groups[g]:Hide() end
+            r.bless:Hide()
+        end
+        for _, c in ipairs(casters) do
+            local r = row()
+            r.buff, r.caster = b.key, c
+            r.label:SetText("  " .. W.ColorName(c, b.class))
+            r.bless:Hide()
+            local set = Assign(b.key)[c] or {}
+            for g = 1, 8 do
+                local btn = r.groups[g]
+                btn:Show()
+                btn:SetText(set[g] and ("|cff33ff66G" .. g .. "|r") or (groups[g] and ("G" .. g) or ("|cff555555G" .. g .. "|r")))
+            end
+        end
+    end
+    header(L("Paladin blessings"), "PALADIN")
+    local pals = Casters("PALADIN", members)
+    if #pals == 0 then
+        local r = row()
+        r.label:SetText("|cff777777  " .. L("Nobody of this class in the raid.") .. "|r")
+        for g = 1, 8 do r.groups[g]:Hide() end
+        r.bless:Hide()
+    end
+    for _, p in ipairs(pals) do
+        local r = row()
+        r.caster = p
+        r.label:SetText("  " .. W.ColorName(p, "PALADIN"))
+        for g = 1, 8 do r.groups[g]:Hide() end
+        local key = db.bless[p]
+        r.bless:SetText(key and BLESS_BY[key] and BLESS_BY[key].text or "-")
+        r.bless:Show()
+    end
+    UI.list:Finish(i)
+end
+
+W.RegisterModule("RaidBuffs", L("Raid Buffs"), function(p)
+    W.Title(p, L("Raid Buffs"))
+    W.Button(p, L("Auto assign"), 120, 22, RB.AutoAssign):SetPoint("TOPLEFT", 12, -34)
+    W.Button(p, L("Send assignments"), 150, 22, RB.Send):SetPoint("TOPLEFT", 136, -34)
+    W.Button(p, L("Check missing"), 130, 22, function() RB.Check(false) end):SetPoint("TOPLEFT", 290, -34)
+    W.Button(p, L("Report missing to raid"), 170, 22, function() RB.Check(true) end):SetPoint("TOPLEFT", 424, -34)
+    W.Button(p, L("Clear"), 80, 22, function() wipe(db.assign); wipe(db.bless); RB.Refresh() end):SetPoint("TOPLEFT", 598, -34)
+    W.Check(p, L("Post the assignments in raid chat too"), function() return db.chat end, function(v) db.chat = v end)
+        :SetPoint("TOPLEFT", 12, -60)
+    local help = W.Label(p, L("Click G1..G8 to give a group to a caster. Paladins: click the blessing to change it."), "GameFontDisableSmall")
+    help:SetPoint("TOPLEFT", 300, -66)
+    UI.list = W.ScrollList(p, 800, 470, ROW_H, MakeRow)
+    UI.list.sf:SetPoint("TOPLEFT", 6, -90)
+    p:SetScript("OnShow", RB.Refresh)
+end, function() RB.Refresh() end)
+
+W.OnRoster(function() if W.IsShown("RaidBuffs") then RB.Refresh() end end)
