@@ -76,17 +76,20 @@ local function InitButton(button, group, glowParent)
 end
 
 -- groups: { { key, filter, max, size, timer, dispelBorder, frameGlow }, ... } shown left to right
+-- (right to left with growLeft, the container then hangs on the right side of parent)
 -- glowParent: the frame a "frameGlow" group colors (the unit frame)
-function NA.Create(parent, groups, glowParent)
+function NA.Create(parent, groups, glowParent, growLeft)
 	if not NA.Available() then return nil end
 	local ok, container = pcall(CreateFrame, "AuraContainer", nil, parent, "CustomAuraContainerTemplate")
 	if not ok or not container then return nil end
 	container:SetSize(1, 1)
-	container:SetPoint("LEFT", parent, "LEFT")
+	local side = growLeft and "RIGHT" or "LEFT"
+	container:SetPoint(side, parent, side)
 	if AnchorUtil and AnchorUtil.FlowLayoutAxis and AnchorUtil.FlowDirection then
+		local dir = growLeft and AnchorUtil.FlowDirection.Left or AnchorUtil.FlowDirection.Right
 		Try(container, "SetFlowLayoutAxis", AnchorUtil.FlowLayoutAxis.Horizontal)
-		Try(container, "SetFlowLayoutAnchorPoint", "LEFT")
-		Try(container, "SetFlowLayoutGrowthDirection", AnchorUtil.FlowDirection.Right, AnchorUtil.FlowDirection.Down)
+		Try(container, "SetFlowLayoutAnchorPoint", side)
+		Try(container, "SetFlowLayoutGrowthDirection", dir or AnchorUtil.FlowDirection.Right, AnchorUtil.FlowDirection.Down)
 		Try(container, "SetFlowLayoutPadding", 0, 0, 0, 0)
 	end
 	for _, g in ipairs(groups) do

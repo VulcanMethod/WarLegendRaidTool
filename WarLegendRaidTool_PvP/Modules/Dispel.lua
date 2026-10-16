@@ -223,18 +223,28 @@ function dispel:AttachToPlayerButton(playerButton)
 	glow:Hide()
 	f.glow = glow
 
-	-- the client's aura container (secret-safe): dispellable debuffs (icon border + frame border in the
-	-- dispel type color) then my buffs on the player; the missing buffs go on the left of the frame
+	-- the client's aura containers (secret-safe):
+	--  right of the frame: the debuffs I can dispel (icon border + frame border in the dispel type color),
+	--  then the other debuffs
+	--  left of the frame: the missing buffs of my class (greyed, read by us), then my buffs on the player
 	local NA = WarLegendPvP.NativeAuras
 	if not playerButton.PlayerIsEnemy and NA and NA.Available() then
 		f.native = NA.Create(f, {
 			{ key = "dispel", filter = "HARMFUL|RAID_PLAYER_DISPELLABLE", max = MAX_DEBUFFS, size = 18, dispelBorder = true, frameGlow = true },
-			{ key = "mine", filter = "HELPFUL|PLAYER", max = 4, size = 18 },
+			{ key = "other", filter = "HARMFUL|!RAID_PLAYER_DISPELLABLE", max = 4, size = 18, dispelBorder = true },
 		}, playerButton)
 		if f.native then
 			f.left = CreateFrame("Frame", nil, playerButton)
 			f.left:SetPoint("RIGHT", playerButton, "LEFT", -2, 0)
 			f.left:SetSize(1, 18)
+			f.leftNative = NA.Create(f.left, {
+				{ key = "mine", filter = "HELPFUL|PLAYER", max = 4, size = 18 },
+			}, nil, true)
+			if f.leftNative then
+				-- hangs left of the greyed icons (f.left grows with them)
+				f.leftNative:ClearAllPoints()
+				f.leftNative:SetPoint("RIGHT", f.left, "LEFT", -2, 0)
+			end
 		end
 	end
 
@@ -251,18 +261,23 @@ function dispel:AttachToPlayerButton(playerButton)
 		return b
 	end
 
+	-- debuffs on the right of the frame; buffs on the left when f.left exists (aura containers), else after the debuffs
 	function f:Show_(debuffs, buffs, border)
 		local size = math.max(10, (playerButton:GetHeight() or 20) - 4)
-		local n = 0
-		local function put(e, r, g, b, grey)
+		local n, nl, nr = 0, 0, 0
+		local function put(e, r, g, b, grey, left)
 			n = n + 1
 			local ic = Icon(n)
 			ic:SetSize(size, size)
 			ic:ClearAllPoints()
-			if f.left then -- grows to the left of the frame
-				ic:SetPoint("RIGHT", f.left, "RIGHT", -(n - 1) * (size + 2), 0)
+			if left then -- grows to the left of the frame
+				ic:SetParent(f.left)
+				ic:SetPoint("RIGHT", f.left, "RIGHT", -nl * (size + 2), 0)
+				nl = nl + 1
 			else
-				ic:SetPoint("LEFT", f, "LEFT", (n - 1) * (size + 2), 0)
+				ic:SetParent(f)
+				ic:SetPoint("LEFT", f, "LEFT", nr * (size + 2), 0)
+				nr = nr + 1
 			end
 			ic.tex:SetTexture(e.icon)
 			ic.tex:SetDesaturated(grey and true or false)
@@ -271,9 +286,10 @@ function dispel:AttachToPlayerButton(playerButton)
 			ic:Show()
 		end
 		for _, d in ipairs(debuffs) do put(d, d.color[1], d.color[2], d.color[3]) end
-		for _, b in ipairs(buffs) do put(b, 0, 0, 0, b.grey) end
+		for _, b in ipairs(buffs) do put(b, 0, 0, 0, b.grey, f.left ~= nil) end
 		for i = n + 1, #f.icons do f.icons[i]:Hide() end
-		self:SetWidth(f.native and 8 * 20 or math.max(1, n * (size + 2)))
+		self:SetWidth(f.native and 8 * 20 or math.max(1, nr * (size + 2)))
+		if f.left then f.left:SetWidth(math.max(1, nl * (size + 2))) end
 		if border then
 			glow:SetBackdropBorderColor(border[1], border[2], border[3], 1)
 			glow:Show()
@@ -286,6 +302,7 @@ function dispel:AttachToPlayerButton(playerButton)
 		for i = 1, #f.icons do f.icons[i]:Hide() end
 		glow:Hide()
 		if f.native then NA.SetUnit(f.native, nil) end
+		if f.leftNative then NA.SetUnit(f.leftNative, nil) end
 	end
 
 	function f:Update()
@@ -297,6 +314,7 @@ function dispel:AttachToPlayerButton(playerButton)
 			if f.nativeUnit ~= unit or not f.native:IsShown() then
 				f.nativeUnit = unit
 				NA.SetUnit(f.native, unit)
+				if f.leftNative then NA.SetUnit(f.leftNative, unit) end
 			end
 			local ok, _, missing = pcall(ReadUnit, unit, true)
 			self:Show_({}, ok and missing or {}, nil)
@@ -320,6 +338,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:OnTestmodeEnabled()
 		self.testmode = true
 		if f.native then NA.SetUnit(f.native, nil); f.nativeUnit = nil end
+		if f.leftNative then NA.SetUnit(f.leftNative, nil) end
 	end
 	function f:OnTestmodeDisabled() self.testmode = false; self:Clear(); f.nativeUnit = nil end
 	function f:OnTestmodeTick()
