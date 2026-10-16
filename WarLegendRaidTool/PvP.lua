@@ -16,6 +16,10 @@ W.AddFR({
     ["Not in combat: the frames are loaded after the fight."] = "Pas en combat : les cadres seront chargés après le combat.",
     ["Show the enemy and ally frames in battlegrounds"] = "Afficher les cadres des ennemis et des alliés en champ de bataille",
     ["Style:"] = "Style :",
+    ["Style: in the Enemies / Allies tabs below."] = "Style : dans les onglets Ennemis / Alliés ci-dessous.",
+    ["Flat"] = "Plat",
+    ["Smooth"] = "Lisse",
+    ["Classic"] = "Classique",
     ["Auto"] = "Auto",
     ["Blizzard"] = "Blizzard",
     ["EllesmereUI is not installed: Blizzard style."] = "EllesmereUI n'est pas installé : style Blizzard.",
@@ -171,7 +175,8 @@ W.slash.pvpcheck = function()
 end
 
 -- value lists of the cycle buttons
-local STYLES = { { "auto", "Auto" }, { "eui", "EllesmereUI" }, { "blizzard", "Blizzard" } }
+local STYLES = { { "auto", "Auto" }, { "eui", "EllesmereUI" }, { "blizzard", "Blizzard" }, { "flat", "Flat" },
+    { "smooth", "Smooth" }, { "classic", "Classic" } }
 local WIDTHS, HEIGHTS, SCALES = {}, {}, {}
 for _, v in ipairs({ 140, 160, 180, 200, 220, 240, 260 }) do WIDTHS[#WIDTHS + 1] = { v, tostring(v) } end
 for _, v in ipairs({ 18, 22, 26, 28, 32, 38, 47 }) do HEIGHTS[#HEIGHTS + 1] = { v, tostring(v) } end
@@ -183,6 +188,12 @@ for _, v in ipairs({ 10, 20, 30, 40 }) do RANGES[#RANGES + 1] = { v, v .. " m" }
 local function BuildSide(f, pvp, side)
     W.Check(f, L("Show these frames"), function() return pvp:GetSideSetting(side, "Enabled") end,
         function(v) pvp:SetSideSetting(side, "Enabled", v) end):SetPoint("TOPLEFT", 12, -4)
+    -- style of this side
+    W.Label(f, L("Style:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 236, -9)
+    local styles = {}
+    for _, s in ipairs(STYLES) do styles[#styles + 1] = { s[1], L(s[2]) } end
+    W.Cycle(f, 120, styles, function() return pvp:GetSideSetting(side, "Style") end,
+        function(v) pvp:SetSideSetting(side, "Style", v) end):SetPoint("TOPLEFT", 290, -4)
 
     local rows = { { L("Width:"), "Width", WIDTHS }, { L("Height:"), "Height", HEIGHTS }, { L("Scale:"), "Scale", SCALES } }
     for i, row in ipairs(rows) do
@@ -248,13 +259,10 @@ W.RegisterModule("PvPFrames", "Battleground frames", function(p)
             MaybeLoad()
         end):SetPoint("TOPLEFT", 12, -40)
 
-    W.Label(p, L("Style:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -72)
-    local styles = {}
-    for _, s in ipairs(STYLES) do styles[#styles + 1] = { s[1], L(s[2]) } end
-    W.Cycle(p, 110, styles, function() return pvp:GetSetting("Style") end,
-        function(v) pvp:SetSetting("Style", v) end):SetPoint("TOPLEFT", 70, -67)
+    -- the style is chosen per side, in the Enemies / Allies tabs below
+    W.Label(p, L("Style: in the Enemies / Allies tabs below."), "GameFontDisableSmall"):SetPoint("TOPLEFT", 16, -72)
     if not pvp:HasEllesmereUI() then
-        W.Label(p, L("EllesmereUI is not installed: Blizzard style."), "GameFontDisableSmall"):SetPoint("TOPLEFT", 190, -72)
+        W.Label(p, L("EllesmereUI is not installed: Blizzard style."), "GameFontDisableSmall"):SetPoint("TOPLEFT", 300, -72)
     end
 
     local checks = {

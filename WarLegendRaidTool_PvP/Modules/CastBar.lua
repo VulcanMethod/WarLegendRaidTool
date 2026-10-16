@@ -180,7 +180,7 @@ function castBar:AttachToPlayerButton(playerButton)
 			size = styleSizes[defaultSettings.Style]
 		end
 		self:SetSize(size.width, size.height)
-		self.Bar:SetStatusBarTexture(WarLegendPvP:GetBarTexture("cast"))
+		self.Bar:SetStatusBarTexture(WarLegendPvP:GetBarTexture("cast", playerButton.PlayerType))
 		self.Bar.Icon:SetSize(size.height + 4, size.height + 4)
 		if self.config.Scale then
 			self:SetScale(self.config.Scale)

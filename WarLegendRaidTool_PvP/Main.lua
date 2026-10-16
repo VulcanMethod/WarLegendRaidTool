@@ -300,6 +300,7 @@ function WarLegendPvP:BuildProfile()
 		local s = savedSide(side)
 		local sideConfig = profile[side]
 		if s.Enabled ~= nil then sideConfig.Enabled = s.Enabled end
+		if type(s.Style) == "string" then sideConfig.Style = s.Style end
 		-- WarLegend: out of range distance and grey (PlayerButton.lua ApplyRangeDesaturation)
 		if type(s.Range) == "number" then
 			sideConfig.RangeIndicator_Range_InCombat = s.Range
@@ -371,6 +372,8 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return cfg.ButtonModules.healthBar and cfg.ButtonModules.healthBar.HealthTextEnabled
 	elseif key == "ClickDispel" then
 		return s.ClickDispel and true or false
+	elseif key == "Style" then
+		return s.Style or self.db.profile.Style or "auto"
 	elseif key == "RangeDesat" then
 		return s.RangeDesat and true or false
 	elseif key == "Range" then
@@ -459,26 +462,55 @@ function WarLegendPvP:HasEllesmereUI()
 	return euiSkin ~= nil
 end
 
-function WarLegendPvP:GetStyle()
-	local style = self.db and self.db.profile.Style or "auto"
+-- WarLegend: one style per side (Allies / Enemies), the general one when a side has none. Textures of the game
+-- only: blizzard (raid health bar + status bar), flat (plain), smooth (raid bar everywhere), classic (skill bar)
+local SKILL_BAR = [[Interface\PaperDollInfoFrame\UI-Character-Skills-Bar]]
+local STYLES = {
+	blizzard = { health = BLIZZARD_HEALTH_BAR, bar = BLIZZARD_BAR },
+	eui = { health = FLAT_BAR, bar = FLAT_BAR, border = true },
+	flat = { health = FLAT_BAR, bar = FLAT_BAR, border = true, outline = "OUTLINE" },
+	smooth = { health = BLIZZARD_HEALTH_BAR, bar = BLIZZARD_HEALTH_BAR, border = true },
+	classic = { health = SKILL_BAR, bar = SKILL_BAR, border = true },
+}
+
+-- the side (Allies / Enemies) a frame belongs to: its player button or main frame carries PlayerType
+local function sideOf(frame)
+	for _ = 1, 10 do
+		if not frame then return nil end
+		if frame.PlayerType then return frame.PlayerType end
+		frame = frame.GetParent and frame:GetParent()
+	end
+end
+WarLegendPvP.SideOf = sideOf
+
+function WarLegendPvP:GetStyle(side)
+	local p = self.db and self.db.profile
+	local style = p and ((side and p[side] and p[side].Style) or p.Style) or "auto"
 	if style == "auto" then style = euiSkin and "eui" or "blizzard" end
 	if style == "eui" and not euiSkin then style = "blizzard" end
+	if not STYLES[style] then style = "blizzard" end
 	return style
 end
 
+function WarLegendPvP:StyleHasBorder(side)
+	return STYLES[self:GetStyle(side)].border and true or false
+end
+
 -- kind: "health", "power" or "cast"
-function WarLegendPvP:GetBarTexture(kind)
-	if self:GetStyle() == "eui" then return FLAT_BAR end
-	return kind == "health" and BLIZZARD_HEALTH_BAR or BLIZZARD_BAR
+function WarLegendPvP:GetBarTexture(kind, side)
+	local s = STYLES[self:GetStyle(side)]
+	return kind == "health" and s.health or s.bar
 end
 
 -- font path, outline flag, shadow
-function WarLegendPvP:GetFont()
-	if self:GetStyle() == "eui" and euiSkin.GetFont then
+function WarLegendPvP:GetFont(side)
+	local style = self:GetStyle(side)
+	if style == "eui" and euiSkin.GetFont then
 		local path, outline = euiSkin.GetFont()
 		if path then return path, outline or "", false end
 	end
-	return STANDARD_TEXT_FONT or [[Fonts\FRIZQT__.TTF]], "", true
+	local outline = STYLES[style].outline
+	return STANDARD_TEXT_FONT or [[Fonts\FRIZQT__.TTF]], outline or "", not outline
 end
 
 function WarLegendPvP:GetAccentColor()
@@ -841,7 +873,7 @@ local function ApplyFontStringSettings(fs, settings, isCooldown)
 	local configTable = Mixin({}, globals, settings)
 
 	-- font, outline and shadow follow the style (EllesmereUI font or Blizzard's), the sizes stay per module
-	local fontPath, styleOutline, styleShadow = WarLegendPvP:GetFont()
+	local fontPath, styleOutline, styleShadow = WarLegendPvP:GetFont(sideOf(fs:GetParent()))
 	local outline = configTable.FontOutline
 	if outline == nil or outline == "" then outline = styleOutline end
 	-- through WarLegend's font family: Cyrillic / Asian names keep their letters (no squares)

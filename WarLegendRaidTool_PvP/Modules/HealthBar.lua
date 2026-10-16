@@ -133,7 +133,7 @@ function healthBar:AttachToPlayerButton(playerButton)
 	function playerButton.healthBar:ApplyAllSettings()
 		if not self.config then return end
 		local config = self.config
-		self:SetStatusBarTexture(WarLegendPvP:GetBarTexture("health"))
+		self:SetStatusBarTexture(WarLegendPvP:GetBarTexture("health", playerButton.PlayerType))
 		self.Background:SetVertexColor(unpack(config.Background))
 		if config.HealthTextEnabled then
 			self.HealthText:Show()

@@ -464,9 +464,9 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 
 		self:ApplyRangeIndicatorSettings()
 
-		-- style: EllesmereUI = 1px black frame, target border in the EllesmereUI accent color
-		local isEUI = WarLegendPvP:GetStyle() == "eui"
-		self.StyleBorder:SetShown(isEUI)
+		-- style (per side): 1px black frame for the styles that have one, EllesmereUI's accent color for the target border
+		local isEUI = WarLegendPvP:GetStyle(self.PlayerType) == "eui"
+		self.StyleBorder:SetShown(WarLegendPvP:StyleHasBorder(self.PlayerType))
 		local tr, tg, tb, ta = unpack(WarLegendPvP.db.profile.MyTarget_Color)
 		if isEUI then
 			tr, tg, tb = WarLegendPvP:GetAccentColor()

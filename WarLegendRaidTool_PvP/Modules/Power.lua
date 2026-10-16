@@ -118,7 +118,7 @@ function power:AttachToPlayerButton(playerButton)
 		-- power
 		self:SetHeight(self.config.Height or 0.01)
 
-		self:SetStatusBarTexture(WarLegendPvP:GetBarTexture("power"))
+		self:SetStatusBarTexture(WarLegendPvP:GetBarTexture("power", playerButton.PlayerType))
 		self.Background:SetVertexColor(unpack(self.config.Background))
 		local playerDetails = playerButton.PlayerDetails
 		if not playerDetails then return end
