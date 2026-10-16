@@ -59,8 +59,46 @@ function W.Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|T" .. W.LOGO_SMALL .. ":14:14|t " .. W.TAG .. tostring(msg))
 end
 
+---------------------------------------------------------------------------
+-- Cost of our own work (/wl perf): every event handler, timer, roster and ready function is timed
+-- (debugprofilestop, microseconds) and the slowest are listed with the file and line that made them.
+---------------------------------------------------------------------------
+local clock = debugprofilestop
+local costs = {} -- [label] = { max, count, total }
+function W.Where(level)
+    local s = debugstack and debugstack((level or 2) + 1, 1, 0) or ""
+    local file, line = s:match("([%w_]+%.lua)%D+(%d+)")
+    return file and (file .. ":" .. line) or "?"
+end
+
+function W.Measure(label, fn, ...)
+    if not clock then return pcall(fn, ...) end
+    local t0 = clock()
+    local ok, err = pcall(fn, ...)
+    local dt = clock() - t0
+    local c = costs[label]
+    if not c then c = { max = 0, count = 0, total = 0 }; costs[label] = c end
+    c.count, c.total = c.count + 1, c.total + dt
+    if dt > c.max then c.max = dt end
+    return ok, err
+end
+
+-- the n slowest, { label, max ms, count }
+function W.SlowestWork(n)
+    local list = {}
+    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count } end
+    table.sort(list, function(a, b) return a[2] > b[2] end)
+    while #list > (n or 5) do table.remove(list) end
+    return list
+end
+
 function W.After(delay, fn)
-    if C_Timer and C_Timer.After then C_Timer.After(delay, fn) end
+    if not (C_Timer and C_Timer.After) then return end
+    local where = W.Where(2)
+    C_Timer.After(delay, function()
+        local ok, err = W.Measure("timer " .. where, fn)
+        if not ok then geterrorhandler()(err) end
+    end)
 end
 
 ---------------------------------------------------------------------------
@@ -91,7 +129,7 @@ end
 -- inactive = true: starts switched off (W.Activate turns it on). Returns the handler.
 function W.On(event, fn, always, inactive)
     handlers[event] = handlers[event] or {}
-    local h = { fn = fn, always = always, active = not inactive, event = event }
+    local h = { fn = fn, always = always, active = not inactive, event = event, label = event .. " " .. W.Where(2) }
     local list = handlers[event]
     list[#list + 1] = h
     if late then late.handlers[#late.handlers + 1] = h end
@@ -112,7 +150,7 @@ local function Run(event, gatedOnly, ...)
     for i = 1, #list do
         local h = list[i]
         if h.active and ((W.access == true and (not gatedOnly or not h.always)) or (h.always and not gatedOnly)) then
-            local ok, err = pcall(h.fn, ...)
+            local ok, err = W.Measure(h.label, h.fn, ...)
             if not ok then geterrorhandler()(err) end
         end
     end
@@ -120,9 +158,10 @@ end
 
 -- One "roster settled" signal shared by the modules: a raid forming fires dozens of
 -- GROUP_ROSTER_UPDATE in a row, the modules run once, half a second after the first one.
-local rosterFns, rosterPending = {}, false
+local rosterFns, rosterLabels, rosterPending = {}, {}, false
 function W.OnRoster(fn)
     rosterFns[#rosterFns + 1] = fn
+    rosterLabels[fn] = "roster " .. W.Where(2)
     if late then late.roster[#late.roster + 1] = fn end
 end
 
@@ -130,7 +169,7 @@ local function RosterSettled()
     rosterPending = false
     if W.access ~= true then return end
     for _, fn in ipairs(rosterFns) do
-        local ok, err = pcall(fn)
+        local ok, err = W.Measure(rosterLabels[fn] or "roster", fn)
         if not ok then geterrorhandler()(err) end
     end
 end
@@ -266,7 +305,8 @@ function W.LoadRaid()
     if W.raidLoaded then return true end
     if loadFailed or not (C_AddOns and C_AddOns.LoadAddOn) then return false end
     late = { handlers = {}, roster = {}, ready = {} }
-    local ok = C_AddOns.LoadAddOn(RAID_ADDON)
+    local called, ok = W.Measure("load the raid modules", C_AddOns.LoadAddOn, RAID_ADDON)
+    if not called then ok = false end
     local got = late
     late = nil
     if not ok then
@@ -304,6 +344,9 @@ local function WantRaid()
     local auras = W.db and W.db.auras
     if auras and auras.enabled then return true end -- Aura Tracking works everywhere, PvP included
     if W.InGroup() then return true end -- a battleground raid too (Raid Groups, marks)
+    -- loaded during the loading screen (PLAYER_ENTERING_WORLD comes before it goes away): no freeze at the
+    -- first /wl in the open world, the cost is the memory of the raid modules when playing alone
+    if W.db and W.db.ui and W.db.ui.preloadRaid then return true end
     local inInstance, kind = IsInInstance()
     return inInstance and (kind == "party" or kind == "raid" or kind == "scenario") and true or false
 end
@@ -414,6 +457,11 @@ end
 ---------------------------------------------------------------------------
 local readyFns = {}
 function W.OnReady(fn)
+    local where, inner = W.Where(2), fn
+    fn = function() -- timed for /wl perf, errors go on to the caller's pcall
+        local ok, err = W.Measure("ready " .. where, inner)
+        if not ok then error(err, 0) end
+    end
     -- a file of the raid addon: its ready functions run once the whole file is loaded, like at login
     if late then late.ready[#late.ready + 1] = fn; return end
     if W.db then fn() else readyFns[#readyFns + 1] = fn end
@@ -462,7 +510,7 @@ W.On("ADDON_LOADED", function(name)
     if type(WarLegendRaidToolDB) ~= "table" then WarLegendRaidToolDB = {} end
     W.db = WarLegendRaidToolDB
     Migrate(W.db)
-    W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto", overlapForce = false })
+    W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto", overlapForce = false, preloadRaid = true })
     -- the language is known from here: everything built from now on uses it
     W.SetLanguage(W.db.ui.lang)
     W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
@@ -1702,6 +1750,10 @@ W.AddFR({
     ["CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"] =
         "CPU : %.3f ms par image (récent), %.3f ms (dernier boss), pic %.2f ms",
     ["CPU: this client has no addon profiler."] = "CPU : ce client n'a pas de profileur d'addons.",
+    ["load the raid modules at the loading screen (fewer freezes) on / off"] =
+        "charger les modules de raid pendant l'écran de chargement (moins de gels) oui / non",
+    ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
+    ["Raid modules loaded at the loading screen: "] = "Modules de raid chargés à l'écran de chargement : ",
 })
 W.slash.perf = function()
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
@@ -1716,6 +1768,21 @@ W.slash.perf = function()
     else
         W.Print(L("CPU: this client has no addon profiler."))
     end
+    -- our own timing: the slowest single runs since the login / last reload, with the code that made them
+    local slow = W.SlowestWork(5)
+    if #slow > 0 then
+        W.Print(L("Slowest work (one run, ms):"))
+        for _, s in ipairs(slow) do W.Print(string.format("  %.1f  %s  (x%d)", s[2], s[1], s[3])) end
+    end
+    W.Print(L("Raid modules loaded at the loading screen: ") .. (W.DB("ui").preloadRaid and L("YES") or L("no"))
+        .. "  |cff999999(/wl preload)|r")
+end
+
+-- /wl preload: load the raid modules during the loading screen (no freeze at the first /wl), or on demand
+W.slash.preload = function()
+    local ui = W.DB("ui")
+    ui.preloadRaid = not ui.preloadRaid
+    W.Print(L("Raid modules loaded at the loading screen: ") .. (ui.preloadRaid and L("YES") or L("no")))
 end
 
 -- /wl reset [data]: puts one module's saved data back to zero (a damaged module), keeps the rest
@@ -1804,6 +1871,7 @@ local HELP = {
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
     { "/wl bgmsg", "last battleground messages (to copy)" },
+    { "/wl preload", "load the raid modules at the loading screen (fewer freezes) on / off" },
     { "/wl caps", "battleground timers: captures, gates, queue, flag (Capping style)" },
     { "/wl danger", "warning when an enemy player or a dangerous mob is near" },
     { "/wl cc", "big icon when I am crowd controlled" },

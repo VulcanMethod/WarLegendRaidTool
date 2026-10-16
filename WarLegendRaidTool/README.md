@@ -43,6 +43,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl help` | Affiche toutes les commandes dans le chat. |
 | `/wl minimap` | Affiche / cache le bouton de la minicarte. |
 | `/wl bugs` | Ouvre l'onglet Bugs (erreurs Lua récentes). |
+| `/wl preload` | Charger les modules de raid pendant l'écran de chargement (activé par défaut : pas de gel au premier `/wl`). |
 | `/wl perf` | Mémoire et CPU utilisés par l'addon. |
 | `/wl reset [données]` | Sans nom : liste les données sauvegardées. Avec un nom : remet ce module à zéro (puis recharge). |
 | `/wl rl` | Bascule `/rl` entre le vrai `/reload` de Blizzard et la fenêtre d'EllesmereUI. |

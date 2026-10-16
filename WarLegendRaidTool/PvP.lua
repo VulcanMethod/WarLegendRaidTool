@@ -77,7 +77,8 @@ function W.LoadPvP()
         W.Print(L("Not in combat: the frames are loaded after the fight."))
         return false
     end
-    local ok = C_AddOns.LoadAddOn(PVP_ADDON)
+    local called, ok = W.Measure("load the battleground frames", C_AddOns.LoadAddOn, PVP_ADDON)
+    if not called then ok = false end
     if not ok then
         loadFailed = true
         W.Print(L("The PvP module is missing or disabled: install the folder WarLegendRaidTool_PvP next to WarLegendRaidTool."))
