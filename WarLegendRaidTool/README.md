@@ -1,9 +1,11 @@
 # WarLegend RaidTool
 
-Addon WoW **Forever** (interface 16001) de la guilde **War Legend** : groupes de raid, loot council, buffs,
-ready check, checklist, inspection, suivi d'auras, CD de raid, préparation, rerolls, outils de guilde,
-export pour simulateurs (SimulationCraft, MythicSim, OXM), chrono de cimetière, liste de summon.
-Commande : `/wl`. Langues : français / anglais.
+Addon WoW **Forever** (interface 16001) de la guilde **War Legend** : groupes de raid, loot council (avec le
+nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'auras, CD de raid, préparation, présences,
+rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
+export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP, chrono de cimetière (style Capping),
+historique et records des premades de BG, liste de summon.
+Commande : `/wl` (`/wl help` affiche toutes les commandes). Langues : français / anglais.
 
 > L'addon est réservé aux membres de la guilde **War Legend** (message affiché sinon).
 > Droits réservés : utilisation libre, pas de redistribution modifiée sans accord.

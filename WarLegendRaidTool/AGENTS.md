@@ -2,7 +2,8 @@
 
 World of Warcraft **Classic** addon (client beta, `## Interface: 16001`) for the "War Legend" guild:
 raid groups, loot council, raid note, buffs, ready check, attendance, who pulled, inspect, aura
-tracking, raid cooldowns, alts, guild tools. Slash command `/wl` (also `/wlrt`, `/warlegend`).
+tracking, raid cooldowns, alts, guild tools, trials, guild bank characters, battleground frames / graveyard
+timer / premade history. Slash command `/wl` (also `/wlrt`, `/warlegend`), `/wl help` lists every command.
 Current version is in `WarLegendRaidTool.toc` (`## Version:`).
 
 The user is French: **always answer in French**. Code, comments and English UI strings stay in English.
@@ -32,6 +33,22 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   zone modules), listed in ITS `.toc`. `Core.lua` loads it (`W.LoadRaid`) in a group, in a dungeon / raid, with Aura Tracking on,
   when `/wl` opens, or when one of its addon messages arrives (prefixes listed in `lodPrefix`: a new prefix there too).
   In that addon `W.OnReady` runs after the whole file is loaded, `W.On` handlers for login / entering world are replayed once.
+- **Third addon**: `../WarLegendRaidTool_PvP` (battleground enemy / ally frames, BattleGroundEnemies cleaned up), loaded on
+  demand by `PvP.lua` (`W.LoadPvP`) in a battleground or when its tab opens.
+- Guild-side modules of the main addon: `Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank,
+  `/wl trials`), `GuildBank.lua` (stock of MY account's characters at the bank rank, read from `Alts.lua`, `/wl bank`),
+  `BGStats.lua` (my guild premades, players, fastest wins per battleground, `/wl bg`). These three are **personal only:
+  no addon messages** — the user chose that; do not add guild sync to them without being asked.
+
+## Commands and docs
+- A new `/wl` sub-command goes in `W.slash` **and** in the `HELP` list of `Core.lua` (`/wl help`, with its French text)
+  **and** in the "Commandes" table of `README.md`.
+- `README.md` is the user-facing doc (French): keep its feature list and command tables in sync with the code.
+
+## Releases
+- Releases are made by pushing a tag `v1.x.x` (GitHub workflow builds the zip that WowUp-CF installs). A push to `main`
+  without a tag does not update the players. Guild members use WowUp-CF: **batch changes**, do not bump `## Version:`
+  or propose a tag after every fix; release only when the user asks.
 
 ## Module pattern (copy this)
 Every file starts with:
