@@ -1,0 +1,43 @@
+name: WarLegend RaidTool release
+
+# Push a tag like v1.24.0 -> GitHub builds WarLegendRaidTool-v1.24.0.zip with the three addon folders
+# (WarLegendRaidTool, WarLegendRaidTool_Raid, WarLegendRaidTool_PvP) and publishes it as a Release.
+# The guild downloads that zip, and WowUp reads the Releases to offer the update.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches the .toc versions
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          for toc in WarLegendRaidTool/WarLegendRaidTool.toc WarLegendRaidTool_Raid/WarLegendRaidTool_Raid.toc WarLegendRaidTool_PvP/WarLegendRaidTool_PvP.toc; do
+            VERSION="$(grep -m1 '^## Version:' "$toc" | sed 's/^## Version:[[:space:]]*//' | tr -d '\r')"
+            if [ "$VERSION" != "$TAG" ]; then
+              echo "::error::$toc says $VERSION, the tag says $TAG"
+              exit 1
+            fi
+          done
+
+      - name: Build the zip
+        run: |
+          ZIP="WarLegendRaidTool-${GITHUB_REF_NAME}.zip"
+          zip -r -q "$ZIP" WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP \
+            -x "*/AGENTS.md" "*/.git*" "*/Libs/LibStub/tests/*"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: WarLegend RaidTool ${{ github.ref_name }}
+          files: ${{ env.ZIP }}
+          generate_release_notes: true

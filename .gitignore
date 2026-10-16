@@ -4,6 +4,12 @@
 !/WarLegendRaidTool_PvP/
 !/.gitignore
 !/.gitattributes
+# only our release workflow: the rest of .github on disk belongs to EllesmereUI
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/wlrt-release.yml
 /WarLegendRaidTool/*.rar
 /WarLegendRaidTool/*.zip
 *.bak
