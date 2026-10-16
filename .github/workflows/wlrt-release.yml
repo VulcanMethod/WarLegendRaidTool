@@ -1,8 +1,11 @@
 name: WarLegend RaidTool release
 
-# Push a tag like v1.24.0 -> GitHub builds WarLegendRaidTool-1.24.0.zip with the three addon folders
+# Push a tag like v1.24.1 -> GitHub builds WarLegendRaidTool-1.24.1-forever.zip with the three addon folders
 # (WarLegendRaidTool, WarLegendRaidTool_Raid, WarLegendRaidTool_PvP) and publishes it as a Release.
 # The guild downloads that zip, and WowUp reads the Releases to offer the update.
+# WowUp (github-addon-provider.ts): the _classic_beta_ client is "ClassicBeta" = flavor "forever". It takes the
+# asset named in release.json for that flavor, or else a zip whose name ends in "-forever.zip". The zip name is
+# the version WowUp compares, so it changes with every release.
 
 on:
   push:
@@ -29,16 +32,24 @@ jobs:
             fi
           done
 
-      - name: Build the zip
+      - name: Build the zip and release.json
         run: |
-          ZIP="WarLegendRaidTool-${GITHUB_REF_NAME#v}.zip"
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP="WarLegendRaidTool-${VERSION}-forever.zip"
           zip -r -q "$ZIP" WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP \
             -x "*/AGENTS.md" "*/.git*" "*/Libs/LibStub/tests/*"
+          INTERFACE="$(grep -m1 '^## Interface:' WarLegendRaidTool/WarLegendRaidTool.toc | sed 's/^## Interface:[[:space:]]*//' | tr -d '\r')"
+          cat > release.json <<EOF
+          {"releases":[{"name":"WarLegendRaidTool","version":"${VERSION}","filename":"${ZIP}","nolib":false,"metadata":[{"flavor":"forever","interface":${INTERFACE}}]}]}
+          EOF
+          cat release.json
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
-          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - uses: softprops/action-gh-release@v2
         with:
           name: WarLegend RaidTool ${{ env.VERSION }}
-          files: ${{ env.ZIP }}
+          files: |
+            ${{ env.ZIP }}
+            release.json
           generate_release_notes: true
