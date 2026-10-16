@@ -1009,6 +1009,16 @@ function W.SetSelected(b, selected)
     end
 end
 
+-- Search index (/wl search box): the texts of the widgets a module panel is made of, while it is built.
+-- Above every widget function: they all call it (a local must be declared before the code using it).
+local indexOff = false
+local function Index(text, widget)
+    local m = W.building
+    if not m or indexOff or type(text) ~= "string" or text == "" then return end
+    m.index = m.index or {}
+    m.index[#m.index + 1] = { text = text, widget = widget }
+end
+
 function W.Button(parent, text, w, h, onClick, tip)
     local b
     local S = W.Skin()
@@ -1048,15 +1058,6 @@ function W.Button(parent, text, w, h, onClick, tip)
     if tip then W.Tooltip(b, text, tip) end
     Index(text, b)
     return b
-end
-
--- Search index (/wl search box): the texts of the widgets a module panel is made of, while it is built
-local indexOff = false
-local function Index(text, widget)
-    local m = W.building
-    if not m or indexOff or type(text) ~= "string" or text == "" then return end
-    m.index = m.index or {}
-    m.index[#m.index + 1] = { text = text, widget = widget }
 end
 
 function W.Label(parent, text, font)
