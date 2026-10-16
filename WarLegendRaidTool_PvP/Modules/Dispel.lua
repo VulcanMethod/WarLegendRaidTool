@@ -12,8 +12,8 @@ local Data = select(2, ...)
 --  * the buffs of my class (Fortitude, Mark of the Wild, Arcane Intellect, Blessings...): the icon is shown
 --    when the player has it, greyed when it is missing (only for the long buffs, and Intellect / Spirit
 --    only on mana users)
--- WoW Forever can keep auras secret in a battleground: an aura the client refuses is never read (no icon,
--- "?" for a dispellable one), and a missing buff is only shown when every buff of the player was readable.
+-- WoW Forever can keep auras secret in a battleground: an aura the client refuses is never read nor shown,
+-- and a missing buff is only shown when every buff of the player was readable.
 
 local W = WLRT
 W.AddFR({
@@ -120,8 +120,9 @@ local function MyClass()
 			if n then names[n] = true end
 			if Knows(id) then known = true end
 		end
-		if known and next(names) then
-			myBuffs[#myBuffs + 1] = { names = names, icon = SpellIcon(fam.ids[1]) or 134400, missing = fam.missing, mana = fam.mana }
+		local icon = SpellIcon(fam.ids[1])
+		if known and icon and next(names) then
+			myBuffs[#myBuffs + 1] = { names = names, icon = icon, missing = fam.missing, mana = fam.mana }
 		end
 	end
 	return myBuffs, myDispels
@@ -134,27 +135,37 @@ local MAX_DEBUFFS = 4
 
 local function ReadUnit(unit)
 	local buffs, dispels = MyClass()
-	local debuffs, border = {}, nil
+	-- an aura the client keeps secret is skipped (never shown as "?"); a run of secret ones stops the scan
+	local debuffs, border, secretRun = {}, nil, 0
 	for i = 1, 40 do
 		local a = W.AuraByIndex(unit, i, "HARMFUL|RAID")
 		if a == nil then break end
-		local icon, dtype
-		if a then icon, dtype = W.Safe(a.icon), W.Safe(a.dispelName) end
-		if not dtype or dispels[dtype] then -- unreadable type: the filter said I can remove it
-			local color = DISPEL_COLOR[dtype or "Unknown"] or DISPEL_COLOR.Unknown
-			border = border or color
-			if #debuffs < MAX_DEBUFFS then debuffs[#debuffs + 1] = { icon = icon or 134400, color = color } end
+		if a == false then
+			secretRun = secretRun + 1
+			if secretRun >= 8 then break end
+		else
+			secretRun = 0
+			local icon, dtype = W.Safe(a.icon), W.Safe(a.dispelName)
+			if icon and (not dtype or dispels[dtype]) then -- type unreadable: the filter said I can remove it
+				local color = DISPEL_COLOR[dtype or "Unknown"] or DISPEL_COLOR.Unknown
+				border = border or color
+				if #debuffs < MAX_DEBUFFS then debuffs[#debuffs + 1] = { icon = icon, color = color } end
+			end
 		end
 	end
 	local have, allReadable = {}, true
 	if #buffs > 0 then
+		secretRun = 0
 		for i = 1, 40 do
 			local a = W.AuraByIndex(unit, i, "HELPFUL")
 			if a == nil then break end
 			local name = a and W.Safe(a.name)
 			if not name then
 				allReadable = false
+				secretRun = secretRun + 1
+				if secretRun >= 8 then break end
 			else
+				secretRun = 0
 				for f, fam in ipairs(buffs) do
 					if fam.names[name] then have[f] = true end
 				end

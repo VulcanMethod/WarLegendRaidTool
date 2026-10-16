@@ -48,6 +48,7 @@ W.AddFR({
     ["not available on this client"] = "pas disponible sur ce client",
     ["no battleground message received since the last /reload"] = "aucun message de champ de bataille reçu depuis le dernier /reload",
     ["Battleground messages"] = "Messages du champ de bataille",
+    ["ally auras: %d readable, %d secret"] = "auras des alliés : %d lisibles, %d secrètes",
     ["Not available on WoW Forever: auras, diminishing returns, trinket and racial (enemy data kept secret in battlegrounds)."] =
         "Pas disponible sur WoW Forever : auras, rendements décroissants, bijou et raciaux (infos ennemies secrètes en champ de bataille).",
 })
@@ -141,6 +142,22 @@ W.slash.pvpcheck = function()
     local lockdown
     if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then lockdown = C_ChatInfo.InChatMessagingLockdown() end
     W.Print("  " .. L("chat lockdown") .. " = " .. Answer(lockdown))
+    -- auras of my team (the ally frames show them only when readable)
+    local readable, secret = 0, 0
+    local units = W.InRaid() and { "raid1", "raid2", "raid3", "raid4", "raid5" } or { "player" }
+    for _, unit in ipairs(units) do
+        if UnitExists(unit) then
+            for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
+                for i = 1, 40 do
+                    local a = W.AuraByIndex(unit, i, filter)
+                    if a == nil then break end
+                    if a then readable = readable + 1 else secret = secret + 1 end
+                    if secret >= 40 then break end
+                end
+            end
+        end
+    end
+    W.Print("  " .. string.format(L("ally auras: %d readable, %d secret"), readable, secret))
     if lastBGMessage then
         W.Print("  " .. L("last battleground message") .. " (" .. date("%H:%M:%S", lastBGMessage.at) .. ") " ..
             L("secret") .. " = " .. Answer(lastBGMessage.secret))
