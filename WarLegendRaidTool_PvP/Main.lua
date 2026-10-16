@@ -937,6 +937,9 @@ local function ApplyFontStringSettings(fs, settings, isCooldown)
 	local fontPath, styleOutline, styleShadow = WarLegendPvP:GetFont(sideOf(fs:GetParent()))
 	local outline = configTable.FontOutline
 	if outline == nil or outline == "" then outline = styleOutline end
+	-- WarLegend: always a black outline. White text with only a shadow cannot be read on a white (priest) or
+	-- light (rogue, paladin) health bar
+	if outline == nil or outline == "" then outline = "OUTLINE" end
 	-- through WarLegend's font family: Cyrillic / Asian names keep their letters (no squares)
 	if WLRT and WLRT.SetFont then
 		WLRT.SetFont(fs, fontPath, configTable.FontSize, outline)
