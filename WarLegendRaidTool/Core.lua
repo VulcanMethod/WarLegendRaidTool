@@ -1263,7 +1263,7 @@ local CATEGORIES = {
         { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
         { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "AutoLog", "Focus", "Summon" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "BGStats" } },
+        { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "CapTimers", "BGStats" } },
     } },
     { key = "me", title = "Guild", sections = {
         { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "VersionCheck", "Bugs" } },
@@ -1770,6 +1770,7 @@ W.AddFR({
     ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
     ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
     ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
+    ["base capture timers (Capping style)"] = "chronos de capture des bases (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
 })
@@ -1801,6 +1802,7 @@ local HELP = {
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
     { "/wl bgmsg", "last battleground messages (to copy)" },
+    { "/wl caps", "base capture timers (Capping style)" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))

@@ -84,6 +84,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
 | `/wl pvp` | Réglages des cadres PvP. |
 | `/wl pvpcheck` | Vérifie si les restrictions d'addons sont actives dans ce champ de bataille. |
+| `/wl caps` | Chronos de capture des bases en BG (logique d'Arathi de Capping, pour Darkspear Island et les autres BG à bases). |
 | `/wl bgmsg` | Derniers messages du champ de bataille, à copier (pour ajouter les textes de drapeau d'un nouveau BG). |
 
 Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarLegendRaidTool.toc`.

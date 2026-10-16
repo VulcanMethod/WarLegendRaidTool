@@ -31,4 +31,5 @@ Bugs.lua
 Roster.lua
 GuildBank.lua
 BGStats.lua
+CapTimers.lua
 VersionCheck.lua
