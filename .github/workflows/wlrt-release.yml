@@ -1,6 +1,6 @@
 name: WarLegend RaidTool release
 
-# Push a tag like v1.24.0 -> GitHub builds WarLegendRaidTool-v1.24.0.zip with the three addon folders
+# Push a tag like v1.24.0 -> GitHub builds WarLegendRaidTool-1.24.0.zip with the three addon folders
 # (WarLegendRaidTool, WarLegendRaidTool_Raid, WarLegendRaidTool_PvP) and publishes it as a Release.
 # The guild downloads that zip, and WowUp reads the Releases to offer the update.
 
@@ -31,13 +31,14 @@ jobs:
 
       - name: Build the zip
         run: |
-          ZIP="WarLegendRaidTool-${GITHUB_REF_NAME}.zip"
+          ZIP="WarLegendRaidTool-${GITHUB_REF_NAME#v}.zip"
           zip -r -q "$ZIP" WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP \
             -x "*/AGENTS.md" "*/.git*" "*/Libs/LibStub/tests/*"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: WarLegend RaidTool ${{ github.ref_name }}
+          name: WarLegend RaidTool ${{ env.VERSION }}
           files: ${{ env.ZIP }}
           generate_release_notes: true
