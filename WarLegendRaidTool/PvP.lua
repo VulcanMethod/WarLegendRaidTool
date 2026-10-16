@@ -19,6 +19,12 @@ W.AddFR({
     ["Style: in the Enemies / Allies tabs below."] = "Style : dans les onglets Ennemis / Alliés ci-dessous.",
     ["Flat"] = "Plat",
     ["Text:"] = "Texte :",
+    ["Bar color:"] = "Couleur des barres :",
+    ["Class"] = "Classe",
+    ["One color"] = "Couleur unique",
+    ["Click: choose the color of every bar of this side (\"One color\")."] =
+        "Clic : choisir la couleur de toutes les barres de ce côté (« Couleur unique »).",
+    ["Name in the class color"] = "Nom en couleur de classe",
     ["Shadow"] = "Ombre",
     ["Outline"] = "Contour",
     ["Thick outline"] = "Contour épais",
@@ -202,6 +208,29 @@ for _, v in ipairs({ 10, 20, 30, 40 }) do RANGES[#RANGES + 1] = { v, v .. " m" }
 RANGES[#RANGES + 1] = { "spell", "My spells" }
 RANGES[#RANGES + 1] = { "blizzard", "Blizzard" }
 
+-- The game's color picker. Blizzard's new way (SetupColorPickerAndShow) when the client has it, else the
+-- old fields of ColorPickerFrame. onChange(r, g, b) on every change, and with the old color on cancel.
+local function PickColor(r, g, b, onChange)
+    local CPF = ColorPickerFrame
+    if not CPF then return end
+    local function current()
+        local ok, nr, ng, nb = pcall(CPF.GetColorRGB, CPF)
+        if ok and nr then onChange(nr, ng, nb) end
+    end
+    if CPF.SetupColorPickerAndShow then
+        CPF:SetupColorPickerAndShow({ r = r, g = g, b = b, hasOpacity = false,
+            swatchFunc = current, cancelFunc = function() onChange(r, g, b) end })
+    else
+        CPF.hasOpacity = false
+        CPF.previousValues = { r, g, b }
+        CPF.func = current
+        CPF.cancelFunc = function() onChange(r, g, b) end
+        CPF:SetColorRGB(r, g, b)
+        CPF:Hide()
+        CPF:Show()
+    end
+end
+
 -- the frames of one side (Enemies / Allies)
 local function BuildSide(f, pvp, side)
     W.Check(f, L("Show these frames"), function() return pvp:GetSideSetting(side, "Enabled") end,
@@ -247,7 +276,37 @@ local function BuildSide(f, pvp, side)
     W.Check(f, L("Class icon"), function() return pvp:GetSideSetting(side, "Modules", "SpecClassPriorityOne") end,
         function(v) pvp:SetSideSetting(side, "Modules", v, "SpecClassPriorityOne") end):SetPoint("TOPLEFT", 392, -86)
 
-    W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -118)
+    -- health bar color: class color, or one color for every player of this side (color picker), and the name
+    -- in the class color
+    W.Label(f, L("Bar color:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -116)
+    W.Cycle(f, 90, { { "class", L("Class") }, { "custom", L("One color") } },
+        function() return pvp:GetSideSetting(side, "BarColorMode") end,
+        function(v) pvp:SetSideSetting(side, "BarColorMode", v) end):SetPoint("TOPLEFT", 100, -111)
+    local swatch = CreateFrame("Button", nil, f, W.BT)
+    W.Size(swatch, 22, 18)
+    swatch:SetPoint("TOPLEFT", 196, -113)
+    W.Backdrop(swatch, 1, true)
+    swatch.color = swatch:CreateTexture(nil, "ARTWORK")
+    swatch.color:SetPoint("TOPLEFT", 2, -2)
+    swatch.color:SetPoint("BOTTOMRIGHT", -2, 2)
+    swatch.color:SetTexture(W.WHITE)
+    local function ShowSwatch()
+        local c = pvp:GetSideSetting(side, "BarColor")
+        swatch.color:SetVertexColor(c[1], c[2], c[3], 1)
+    end
+    swatch:SetScript("OnShow", ShowSwatch)
+    swatch:SetScript("OnClick", function()
+        local c = pvp:GetSideSetting(side, "BarColor")
+        PickColor(c[1], c[2], c[3], function(r, g, b)
+            pvp:SetSideSetting(side, "BarColor", { r, g, b })
+            ShowSwatch()
+        end)
+    end)
+    W.Tooltip(swatch, L("Bar color:"), { L("Click: choose the color of every bar of this side (\"One color\").") })
+    W.Check(f, L("Name in the class color"), function() return pvp:GetSideSetting(side, "NameClassColor") end,
+        function(v) pvp:SetSideSetting(side, "NameClassColor", v) end):SetPoint("TOPLEFT", 236, -110)
+
+    W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -142)
     for i, moduleName in ipairs(pvp.ToggleableModules) do
         local module = pvp.ButtonModules[moduleName]
         if module then
@@ -255,7 +314,7 @@ local function BuildSide(f, pvp, side)
             W.Check(f, module.localizedModuleName or moduleName,
                 function() return pvp:GetSideSetting(side, "Modules", moduleName) end,
                 function(v) pvp:SetSideSetting(side, "Modules", v, moduleName) end
-            ):SetPoint("TOPLEFT", 12 + col * 220, -134 - row * 24)
+            ):SetPoint("TOPLEFT", 12 + col * 220, -158 - row * 24)
         end
     end
 end

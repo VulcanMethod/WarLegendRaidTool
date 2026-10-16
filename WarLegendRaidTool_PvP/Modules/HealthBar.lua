@@ -144,8 +144,8 @@ function healthBar:AttachToPlayerButton(playerButton)
 		self.HealthText:ApplyFontStringSettings(config.HealthText)
 		local playerDetails = playerButton.PlayerDetails
 		if not playerDetails then return end
-		local color = playerDetails.PlayerClassColor
-		self:SetStatusBarColor(color.r, color.g, color.b)
+		-- WarLegend: class color, or the side's single color (Main.lua GetBarColor)
+		self:SetStatusBarColor(WarLegendPvP:GetBarColor(playerButton))
 		self:SetMinMaxValues(0, 1)
 		self:SetValue(1)
 		self:UpdateHealthText(false, false)

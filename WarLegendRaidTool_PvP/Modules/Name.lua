@@ -91,6 +91,10 @@ function name:AttachToPlayerButton(playerButton)
 		local config = self.config
 		-- name
 		self:ApplyFontStringSettings(config.Text)
+		-- WarLegend: the name in the class color (option per side)
+		local side = WarLegendPvP.db.profile[playerButton.PlayerType]
+		local c = playerButton.PlayerDetails and playerButton.PlayerDetails.PlayerClassColor
+		if side and side.NameClassColor and c then self:SetTextColor(c.r, c.g, c.b) end
 		self:SetName()
 	end
 	return playerButton.Name

@@ -302,6 +302,10 @@ function WarLegendPvP:BuildProfile()
 		if s.Enabled ~= nil then sideConfig.Enabled = s.Enabled end
 		if type(s.Style) == "string" then sideConfig.Style = s.Style end
 		if type(s.TextOutline) == "string" then sideConfig.TextOutline = s.TextOutline end
+		-- WarLegend: health bar color (class / one color for all) and name in the class color (GetBarColor)
+		sideConfig.BarColorMode = s.BarColorMode == "custom" and "custom" or "class"
+		sideConfig.BarColor = type(s.BarColor) == "table" and s.BarColor or nil
+		sideConfig.NameClassColor = s.NameClassColor and true or false
 		-- WarLegend: out of range distance and grey (PlayerButton.lua ApplyRangeDesaturation)
 		if type(s.Range) == "number" then
 			sideConfig.RangeIndicator_Range_InCombat = s.Range
@@ -378,6 +382,12 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return s.Style or self.db.profile.Style or "auto"
 	elseif key == "TextOutline" then
 		return s.TextOutline or "shadow"
+	elseif key == "BarColorMode" then
+		return s.BarColorMode == "custom" and "custom" or "class"
+	elseif key == "BarColor" then
+		return type(s.BarColor) == "table" and s.BarColor or { 0.25, 0.25, 0.25 }
+	elseif key == "NameClassColor" then
+		return s.NameClassColor and true or false
 	elseif key == "RangeDesat" then
 		return s.RangeDesat and true or false
 	elseif key == "Range" then
@@ -554,6 +564,17 @@ function WarLegendPvP:GetStyle(side)
 	if style == "eui" and not euiSkin then style = "blizzard" end
 	if not STYLES[style] then style = "blizzard" end
 	return style
+end
+
+-- WarLegend: the health bar color of a player button: the side's single color, or the class color
+function WarLegendPvP:GetBarColor(playerButton)
+	local cfg = self.db and self.db.profile[playerButton.PlayerType]
+	if cfg and cfg.BarColorMode == "custom" and type(cfg.BarColor) == "table" then
+		return cfg.BarColor[1] or 0.25, cfg.BarColor[2] or 0.25, cfg.BarColor[3] or 0.25
+	end
+	local c = playerButton.PlayerDetails and playerButton.PlayerDetails.PlayerClassColor
+	if c then return c.r, c.g, c.b end
+	return 0.5, 0.5, 0.5
 end
 
 function WarLegendPvP:StyleHasBorder(side)
