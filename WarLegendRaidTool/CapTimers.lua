@@ -376,9 +376,9 @@ end)
 -- Time to win (Capping's Arathi score estimator, for any battleground with two "score/max" counters at the
 -- top of the screen: Darkspear Island, Arathi...). The widget IDs and point rates of a battleground are not
 -- needed: the two counters are found in the top widgets (Alliance first), and each team's rate is measured
--- over the last 30 seconds. The bar: "Final: Alliance - Horde", until the winner reaches the max score.
+-- between its score steps of the last 45 seconds. The bar: "Final: Alliance - Horde", until the winner reaches the max score.
 ---------------------------------------------------------------------------
-local WIN_WINDOW = 30
+local WIN_WINDOW = 45
 local scoreWidgets, samples, winText = nil, { {}, {} }, nil
 
 -- the two score counters: { kind = "text" | "double", ids }
@@ -430,16 +430,38 @@ local function ReadScores()
     if scores[1] and scores[2] and max and max > 0 then return scores[1], scores[2], max end
 end
 
--- points per second of a team over the last WIN_WINDOW seconds
-local function Rate(list, score, now)
+-- A team's score as ticks: only the moments the score changed are kept (scores go up by steps, a sample
+-- between two steps would make the rate swing). Rate = points between the first and the last tick of the
+-- last WIN_WINDOW seconds / the time between them. A team with no tick for that long scores nothing.
+local function AddTick(list, score, now)
+    local last = list[#list]
+    if last and score == last.s then return end
+    if last and score < last.s then wipe(list) end -- a new game, a reset
     list[#list + 1] = { t = now, s = score }
     while #list > 2 and now - list[1].t > WIN_WINDOW do table.remove(list, 1) end
-    local first = list[1]
-    if not first or now - first.t < 8 or score < first.s then
-        if first and score < first.s then wipe(list); list[1] = { t = now, s = score } end
-        return nil
+end
+
+-- rate (points / s) and the score projected to now; nil while not enough is known
+local function TeamRate(list, now)
+    local first, last = list[1], list[#list]
+    if not last then return nil end
+    if now - last.t > WIN_WINDOW then return 0, last.s end -- no base: no points
+    if first == last or last.t - first.t < 5 then return nil end
+    local rate = (last.s - first.s) / (last.t - first.t)
+    return rate, last.s + rate * (now - last.t)
+end
+
+-- the win bar changes its text and end in place (no new bar on every tick)
+local function SetWinBar(text, left, winner)
+    local a = active.win
+    if a and a.team == winner then
+        a.label = text
+        a.bar.text:SetText(text)
+        a.ends = GetTime() + left
+        if left > a.total then a.total = left; a.bar.bar:SetMinMaxValues(0, left) end
+        return
     end
-    return (score - first.s) / (now - first.t)
+    StartBar("win", text, left, winner, winner == "Horde" and 132485 or 132486, winner) -- INV_BannerPVP_01 / _02
 end
 
 local lastWinRead = 0
@@ -450,24 +472,25 @@ local function UpdateWin()
     lastWinRead = now
     local a, h, max = ReadScores()
     if not a then return end
-    local ra, rh = Rate(samples[1], a, now), Rate(samples[2], h, now)
+    AddTick(samples[1], a, now)
+    AddTick(samples[2], h, now)
+    local ra, pa = TeamRate(samples[1], now)
+    local rh, ph = TeamRate(samples[2], now)
     if not ra or not rh or (ra <= 0 and rh <= 0) then return end
-    local ta = ra > 0 and (max - a) / ra or math.huge
-    local th = rh > 0 and (max - h) / rh or math.huge
+    local ta = ra > 0 and math.max(0, (max - pa) / ra) or math.huge
+    local th = rh > 0 and math.max(0, (max - ph) / rh) or math.huge
     local winner, left, fa, fh
     if ta <= th then
         winner, left = "Alliance", ta
-        fa, fh = max, math.min(max - 10, 10 * math.floor((h + rh * ta + 5) / 10))
+        fa, fh = max, math.min(max - 10, 10 * math.floor((ph + rh * ta) / 10))
     else
         winner, left = "Horde", th
-        fa, fh = math.min(max - 10, 10 * math.floor((a + ra * th + 5) / 10)), max
+        fa, fh = math.min(max - 10, 10 * math.floor((pa + ra * th) / 10)), max
     end
-    if left <= 0 or left > 3600 then return end
+    if left <= 1 or left > 3600 then return end
     local text = string.format(L("Final: %d - %d"), fa, fh)
-    local cur = active.win
-    if cur and cur.label == text and math.abs((cur.ends - now) - left) < 5 then return end -- no restart for a small drift
     winText = text
-    StartBar("win", text, left, winner, winner == "Horde" and 132485 or 132486, winner) -- INV_BannerPVP_01 / _02
+    SetWinBar(text, left, winner)
 end
 
 local winEv = W.On("UPDATE_UI_WIDGET", UpdateWin, nil, true)
