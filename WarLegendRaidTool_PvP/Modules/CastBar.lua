@@ -96,11 +96,20 @@ function castBar:AttachToPlayerButton(playerButton)
 		bar:SetValue(bar.isChannel and (1 - progress) or progress)
 	end
 
+	-- WarLegend: a unit token can point to another player by now (nameplates are reused): the cast is only
+	-- shown when the unit is this button's player (when its name is readable; unreadable: the mapping is trusted)
+	local function isThisPlayer(unit)
+		local ok, name = pcall(WarLegendPvP.GetReadableUnitName, WarLegendPvP, unit)
+		if not ok or not name then return true end
+		local okB, btn = pcall(WarLegendPvP.GetPlayerbuttonByName, WarLegendPvP, name)
+		return not okB or btn == nil or btn == playerButton
+	end
+
 	function container:Refresh()
 		local bar = self.Bar
 		bar:SetScript("OnUpdate", nil)
 		local unit = self.unit
-		if not unit then return bar:Hide() end
+		if not unit or not UnitExists(unit) or not isThisPlayer(unit) then return bar:Hide() end
 
 		local name, _, texture, startTime, endTime, _, _, notInterruptible = UnitCastingInfo(unit)
 		local isChannel = false
@@ -150,6 +159,8 @@ function castBar:AttachToPlayerButton(playerButton)
 
 	function container:SetUnit(unitID)
 		self:UnregisterAllEvents()
+		-- "raid3target"-like tokens get no cast events: their bar would keep an old cast, none is shown
+		if type(unitID) == "string" and unitID ~= "target" and unitID:find("target$") then unitID = nil end
 		self.unit = unitID
 		if unitID then
 			for i = 1, #CAST_EVENTS do

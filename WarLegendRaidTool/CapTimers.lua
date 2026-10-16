@@ -25,6 +25,8 @@ W.AddFR({
     ["A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."] =
         "Une base attaquée (icône contestée sur la carte) a une barre jusqu'à sa prise : Alterac 5 min, Arathi 1 min, les autres champs de bataille le temps choisi ici. Maj-clic sur une barre : /dire, Ctrl-clic : canal du champ de bataille. Si un champ de bataille n'affiche rien, ouvre « Points de la carte maintenant » pendant une attaque et envoie le texte.",
     ["Not in a battleground."] = "Pas en champ de bataille.",
+    ["Time to win (final score estimate)"] = "Temps avant la victoire (score final estimé)",
+    ["Final: %d - %d"] = "Final : %d - %d",
 })
 local L = W.L
 local db
@@ -57,7 +59,7 @@ local CAP_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"
 local CAP_W, CAP_H, CAP_FONT_SIZE = 200, 20, 10
 
 W.OnReady(function()
-    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60, queue = true, flag = true })
+    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60, queue = true, flag = true, win = true })
     if type(db.point) ~= "table" then db.point = { "TOP", "TOP", 0, -150 } end
 end)
 
@@ -331,9 +333,113 @@ W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
 end)
 
 ---------------------------------------------------------------------------
+-- Time to win (Capping's Arathi score estimator, for any battleground with two "score/max" counters at the
+-- top of the screen: Darkspear Island, Arathi...). The widget IDs and point rates of a battleground are not
+-- needed: the two counters are found in the top widgets (Alliance first), and each team's rate is measured
+-- over the last 30 seconds. The bar: "Final: Alliance - Horde", until the winner reaches the max score.
+---------------------------------------------------------------------------
+local WIN_WINDOW = 30
+local scoreWidgets, samples, winText = nil, { {}, {} }, nil
+
+-- the two score counters: { kind = "text" | "double", ids }
+local function FindScoreWidgets()
+    local UI = C_UIWidgetManager
+    if not (UI and UI.GetTopCenterWidgetSetID and UI.GetAllWidgetsBySetID) then return nil end
+    local setID = UI.GetTopCenterWidgetSetID()
+    local ok, widgets = pcall(UI.GetAllWidgetsBySetID, setID)
+    if not ok or type(widgets) ~= "table" then return nil end
+    table.sort(widgets, function(a, b) return (a.orderIndex or 0) < (b.orderIndex or 0) end)
+    local texts = {}
+    for _, w in ipairs(widgets) do
+        local id = w.widgetID
+        if UI.GetDoubleStatusBarWidgetVisualizationInfo then
+            local okD, d = pcall(UI.GetDoubleStatusBarWidgetVisualizationInfo, id)
+            if okD and d and W.Safe(d.leftBarMax) and W.Safe(d.rightBarMax) then return { kind = "double", id = id } end
+        end
+        if UI.GetIconAndTextWidgetVisualizationInfo then
+            local okT, t = pcall(UI.GetIconAndTextWidgetVisualizationInfo, id)
+            local text = okT and t and W.Safe(t.text)
+            if type(text) == "string" and text:match("%d+%s*/%s*%d+") then texts[#texts + 1] = id end
+        end
+        if #texts == 2 then return { kind = "text", ids = texts } end
+    end
+end
+
+-- Alliance score, Horde score, max score
+local function ReadScores()
+    local UI = C_UIWidgetManager
+    if not scoreWidgets then scoreWidgets = FindScoreWidgets() end
+    local w = scoreWidgets
+    if not w then return end
+    if w.kind == "double" then
+        local ok, d = pcall(UI.GetDoubleStatusBarWidgetVisualizationInfo, w.id)
+        if not ok or not d then return end
+        local a, h, max = W.Safe(d.leftBarValue), W.Safe(d.rightBarValue), W.Safe(d.leftBarMax)
+        if type(a) == "number" and type(h) == "number" and type(max) == "number" and max > 0 then return a, h, max end
+        return
+    end
+    local scores, max = {}, nil
+    for i, id in ipairs(w.ids) do
+        local ok, t = pcall(UI.GetIconAndTextWidgetVisualizationInfo, id)
+        local text = ok and t and W.Safe(t.text)
+        local s, m = type(text) == "string" and text:match("(%d+)%s*/%s*(%d+)")
+        scores[i], max = tonumber(s), tonumber(m) or max
+    end
+    if scores[1] and scores[2] and max and max > 0 then return scores[1], scores[2], max end
+end
+
+-- points per second of a team over the last WIN_WINDOW seconds
+local function Rate(list, score, now)
+    list[#list + 1] = { t = now, s = score }
+    while #list > 2 and now - list[1].t > WIN_WINDOW do table.remove(list, 1) end
+    local first = list[1]
+    if not first or now - first.t < 8 or score < first.s then
+        if first and score < first.s then wipe(list); list[1] = { t = now, s = score } end
+        return nil
+    end
+    return (score - first.s) / (now - first.t)
+end
+
+local lastWinRead = 0
+local function UpdateWin()
+    if not db or not db.win then return end
+    local now = GetTime()
+    if now - lastWinRead < 1 then return end
+    lastWinRead = now
+    local a, h, max = ReadScores()
+    if not a then return end
+    local ra, rh = Rate(samples[1], a, now), Rate(samples[2], h, now)
+    if not ra or not rh or (ra <= 0 and rh <= 0) then return end
+    local ta = ra > 0 and (max - a) / ra or math.huge
+    local th = rh > 0 and (max - h) / rh or math.huge
+    local winner, left, fa, fh
+    if ta <= th then
+        winner, left = "Alliance", ta
+        fa, fh = max, math.min(max - 10, 10 * math.floor((h + rh * ta + 5) / 10))
+    else
+        winner, left = "Horde", th
+        fa, fh = math.min(max - 10, 10 * math.floor((a + ra * th + 5) / 10)), max
+    end
+    if left <= 0 or left > 3600 then return end
+    local text = string.format(L("Final: %d - %d"), fa, fh)
+    local cur = active.win
+    if cur and cur.label == text and math.abs((cur.ends - now) - left) < 5 then return end -- no restart for a small drift
+    winText = text
+    StartBar("win", text, left, winner, winner == "Horde" and 132485 or 132486, winner) -- INV_BannerPVP_01 / _02
+end
+
+local winEv = W.On("UPDATE_UI_WIDGET", UpdateWin, nil, true)
+
+---------------------------------------------------------------------------
 -- Zone
 ---------------------------------------------------------------------------
+local ESTIMATOR_ZONES = { [529] = true, [2107] = true } -- Arathi: Capping has its own estimator
 local function Zone()
+    local inBG = db and InstanceID()
+    local winOn = inBG and db.win and not (ESTIMATOR_ZONES[inBG] and CappingLoaded()) and true or false
+    W.Activate(winEv, winOn)
+    scoreWidgets, samples, winText = nil, { {}, {} }, nil
+    StopMatching("win")
     local id = db and db.enabled and InstanceID()
     local on = id and not (CAPPING_ZONES[id] and CappingLoaded())
     W.Activate(poiEv, on and true or false)
@@ -359,6 +465,10 @@ local function MapDump()
     for _, p in ipairs(POIs()) do
         lines[#lines + 1] = tostring(p.name) .. "  icon=" .. tostring(p.icon) .. "  atlas=" .. tostring(p.atlas) .. "  poi=" .. tostring(p.id)
     end
+    -- the score counters the time to win reads
+    local a, h, max = ReadScores()
+    lines[#lines + 1] = "score: " .. tostring(a) .. " - " .. tostring(h) .. " / " .. tostring(max)
+        .. (scoreWidgets and ("  (" .. scoreWidgets.kind .. " " .. tostring(scoreWidgets.id or table.concat(scoreWidgets.ids, ",")) .. ")") or "  (no counter found)")
     W.TextPopup(L("Map points now"), table.concat(lines, "\n"), { hint = "Ctrl+C" })
 end
 
@@ -368,6 +478,8 @@ W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
         function(v) db.enabled = v; Zone() end):SetPoint("TOPLEFT", 12, -40)
     W.Check(p, L("Battle start and queue bars"), function() return db.queue end, function(v) db.queue = v end):SetPoint("TOPLEFT", 12, -64)
     W.Check(p, L("Flag respawn after a capture"), function() return db.flag end, function(v) db.flag = v end):SetPoint("TOPLEFT", 12, -88)
+    W.Check(p, L("Time to win (final score estimate)"), function() return db.win end, function(v) db.win = v; Zone() end)
+        :SetPoint("TOPLEFT", 330, -40)
     W.Check(p, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -112)
     W.Label(p, L("Capture time (other battlegrounds):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -148)
     local times = {}
