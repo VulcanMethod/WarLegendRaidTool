@@ -1232,7 +1232,7 @@ local CATEGORIES = {
         { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "me", items = { "Guild", "Alts", "SimExport", "QualityOfLife", "VersionCheck" } },
+        { key = "me", items = { "Guild", "Alts", "SimExport", "QualityOfLife", "VersionCheck", "Bugs" } },
     } },
 }
 
