@@ -1300,6 +1300,35 @@ end
 ---------------------------------------------------------------------------
 -- Tabbed main window
 ---------------------------------------------------------------------------
+-- "Test all" (as EllesmereUI's test mode): every module registers how to show itself with fake data; the
+-- button in the window header and /wl test run the tests of the modules switched on, all at once, so each
+-- thing can be seen and dragged to its place. label: English (translated when printed).
+W.tests = {}
+function W.RegisterTest(label, enabled, run)
+    W.tests[#W.tests + 1] = { label = label, enabled = enabled, run = run }
+end
+
+W.AddFR({
+    ["Test all"] = "Tout tester",
+    ["Test: %s. Drag them to move them (when not locked)."] =
+        "Test : %s. Fais-les glisser pour les déplacer (s'ils ne sont pas verrouillés).",
+    ["Test: no module switched on."] = "Test : aucun module activé.",
+    ["Shows every module switched on, with fake data, so you can see and move them."] =
+        "Affiche tous les modules activés avec de fausses données, pour les voir et les déplacer.",
+})
+function W.TestAll()
+    local shown = {}
+    for _, t in ipairs(W.tests) do
+        local okOn, on = pcall(t.enabled)
+        if okOn and on then
+            local ok, err = pcall(t.run)
+            if ok then shown[#shown + 1] = L(t.label) else geterrorhandler()(err) end
+        end
+    end
+    if #shown == 0 then W.Print(L("Test: no module switched on.")); return end
+    W.Print(string.format(L("Test: %s. Drag them to move them (when not locked)."), table.concat(shown, ", ")))
+end
+
 W.modules = {}
 local byKey = {}
 function W.RegisterModule(key, label, build, refresh)
@@ -1499,6 +1528,9 @@ function W.BuildMain()
     -- search box: a tool or an option (any check box, button or text of the tabs), results under it
     local search = W.EditBox(main, 170, 40)
     search:SetPoint("RIGHT", langBtn, "LEFT", -10, 0)
+    -- "Test all": every module switched on shows itself at once (EllesmereUI-like test mode)
+    W.Button(main, L("Test all"), 90, 20, function() W.TestAll() end,
+        { L("Shows every module switched on, with fake data, so you can see and move them.") }):SetPoint("RIGHT", search, "LEFT", -10, 0)
     local hint = search:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hint:SetPoint("LEFT", 4, 0)
     hint:SetText(L("Search an option..."))
@@ -1931,6 +1963,9 @@ W.AddFR({
     ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
     ["Raid modules loaded at the loading screen: "] = "Modules de raid chargés à l'écran de chargement : ",
 })
+-- /wl test: the test of every module switched on, at once
+W.slash.test = function() W.TestAll() end
+
 W.slash.perf = function()
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()
@@ -2016,6 +2051,7 @@ W.AddFR({
     ["warning when an enemy player or a dangerous mob is near"] = "alerte quand un joueur ennemi ou un monstre dangereux approche",
     ["big icon when I am crowd controlled"] = "grosse icône quand je suis sous contrôle (CC)",
     ["big countdown for duels (start, out of the duel area)"] = "gros compte à rebours pour les duels (début, hors de la zone)",
+    ["test every module switched on at once (to see and move them)"] = "tester tous les modules activés en même temps (pour les voir et les déplacer)",
     ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
@@ -2053,6 +2089,7 @@ local HELP = {
     { "/wl danger", "warning when an enemy player or a dangerous mob is near" },
     { "/wl cc", "big icon when I am crowd controlled" },
     { "/wl duel", "big countdown for duels (start, out of the duel area)" },
+    { "/wl test", "test every module switched on at once (to see and move them)" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))

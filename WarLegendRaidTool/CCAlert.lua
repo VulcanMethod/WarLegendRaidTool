@@ -148,6 +148,20 @@ for _, e in ipairs({ "LOSS_OF_CONTROL_ADDED", "LOSS_OF_CONTROL_UPDATE", "PLAYER_
 end
 events:SetScript("OnEvent", function() if W.Allowed() then Start() end end)
 
+local function Test()
+    Create()
+    local k = KINDS.STUN
+    frame:SetSize(db.size, db.size)
+    frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)
+    frame.icon:SetTexture(132298) -- Kidney Shot
+    frame.label:SetText(L(k[1]))
+    frame.label:SetTextColor(k[2], k[3], k[4])
+    frame.cd:SetCooldown(GetTime(), 5)
+    frame:Show()
+    C_Timer.After(5, function() if frame then frame:Hide() end end)
+end
+W.RegisterTest("Crowd control alert", function() return db and db.enabled end, Test)
+
 W.RegisterModule("CCAlert", L("Crowd control alert"), function(p)
     W.Title(p, L("Crowd control alert"))
     W.Check(p, L("Show a big icon when I am crowd controlled"), function() return db.enabled end,
@@ -160,18 +174,7 @@ W.RegisterModule("CCAlert", L("Crowd control alert"), function(p)
     for _, s in ipairs({ 48, 64, 80, 96, 128 }) do sizes[#sizes + 1] = { s, tostring(s) } end
     W.Cycle(p, 70, sizes, function() return db.size end, function(v) db.size = v; if frame then frame:SetSize(v, v) end end)
         :SetPoint("TOPLEFT", 90, -145)
-    W.Button(p, L("Test"), 110, 22, function()
-        Create()
-        local k = KINDS.STUN
-        frame:SetSize(db.size, db.size)
-        frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)
-        frame.icon:SetTexture(132298) -- Kidney Shot
-        frame.label:SetText(L(k[1]))
-        frame.label:SetTextColor(k[2], k[3], k[4])
-        frame.cd:SetCooldown(GetTime(), 5)
-        frame:Show()
-        C_Timer.After(5, function() if frame then frame:Hide() end end)
-    end):SetPoint("TOPLEFT", 16, -184)
+    W.Button(p, L("Test"), 110, 22, Test):SetPoint("TOPLEFT", 16, -184)
     W.Button(p, L("Reset position"), 160, 22, function()
         db.point = { "CENTER", "CENTER", 0, 120 }
         if frame then Place() end

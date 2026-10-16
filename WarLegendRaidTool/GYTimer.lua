@@ -27,6 +27,7 @@ local CAP_ICON = "Interface\\Icons\\Spell_Holy_Resurrection"
 local CAP_W, CAP_H, CAP_FONT_SIZE = 200, 20, 10
 local nextWave -- GetTime() of the next wave, nil until synced with the spirit healer
 local testMode, acc = false, 0
+local testRun = 0
 local healerEv
 local standalone = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GYTimer")
 
@@ -144,7 +145,17 @@ W.slash.gy = function()
     testMode = not testMode
     nextWave = testMode and (GetTime() + WAVE) or nil
     Refresh()
+    -- the test stops by itself after two fake waves (a newer test keeps its own stop)
+    testRun = testRun + 1
+    local run = testRun
+    if testMode then
+        W.After(2 * WAVE + 1, function()
+            if testMode and run == testRun then testMode = false; nextWave = nil; Refresh() end
+        end)
+    end
 end
+W.RegisterTest("Graveyard timer", function() return db and db.enabled and not standalone end,
+    function() if not testMode then W.slash.gy() end end)
 
 W.RegisterModule("GYTimer", "Graveyard timer", function(p)
     W.Title(p, L("Graveyard timer"))

@@ -28,6 +28,7 @@ W.AddFR({
     ["BigWigs style: the bar moves to the middle for its last 5 seconds"] =
         "Style BigWigs : la barre passe au centre pour ses 5 dernières secondes",
     ["Big 5-4-3-2-1 countdown"] = "Gros décompte 5-4-3-2-1",
+    ["Middle bar (drag me)"] = "Barre du centre (déplace-moi)",
     ["Voice countdown"] = "Décompte vocal",
     ["Time to win (final score estimate)"] = "Temps avant la victoire (score final estimé)",
     ["Final: %d - %d"] = "Final : %d - %d",
@@ -107,8 +108,17 @@ local function NewBar()
     f:SetSize(CAP_W, CAP_H)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function() if not db.locked then anchor:StartMoving() end end)
-    f:SetScript("OnDragStop", function() anchor:GetScript("OnDragStop")(anchor) end)
+    -- dragging a bar moves its pile: the normal one, or the middle one (emphasized bars)
+    f:SetScript("OnDragStart", function(self)
+        if db.locked then return end
+        self.mover = self:GetParent()
+        self.mover:StartMoving()
+    end)
+    f:SetScript("OnDragStop", function(self)
+        local m = self.mover
+        self.mover = nil
+        if m then m:GetScript("OnDragStop")(m) end
+    end)
     f:SetScript("OnMouseUp", function(self) if self.data then Report(self.data) end end)
     f.icon = f:CreateTexture(nil, "ARTWORK")
     f.icon:SetSize(CAP_H, CAP_H)
@@ -145,8 +155,16 @@ local function EmphAnchor()
     if emphAnchor then return emphAnchor end
     emphAnchor = CreateFrame("Frame", "WLRTCapTimersEmphasize", UIParent)
     emphAnchor:SetSize(CAP_W, CAP_H)
-    emphAnchor:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+    local p = db.emphPoint or { "CENTER", "CENTER", 0, 120 }
+    emphAnchor:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     emphAnchor:SetFrameStrata("HIGH")
+    emphAnchor:SetClampedToScreen(true)
+    emphAnchor:SetMovable(true) -- dragged through its bars (not locked); the big number moves with it
+    emphAnchor:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, rel, x, y = self:GetPoint()
+        db.emphPoint = { point, rel, x, y }
+    end)
     -- the big number above the emphasized bars (an inner frame for W.Pulse, it grows in place)
     bigCount = CreateFrame("Frame", nil, emphAnchor)
     bigCount:SetSize(1, 1)
@@ -636,6 +654,19 @@ local function MapDump()
     W.TextPopup(L("Map points now"), table.concat(lines, "\n"), { hint = "Ctrl+C" })
 end
 
+-- test bars: the pile, plus one bar kept in the middle for 20 s so the middle can be dragged, and one short bar
+-- for the big countdown
+function W.CapTimersTest()
+    StartBar("test:a", "Test Alliance", 60, "Alliance", { poi = 3 }, "Alliance")
+    StartBar("test:h", "Test Horde", 30, "Horde", { poi = 13 }, "Horde")
+    StartBar("test:g", L("Battle begins"), 45, "other", 136106)
+    StartBar("test:f", L("Flag respawns"), FLAG_RESPAWN, "other", 134420)
+    local mid = StartBar("test:c", L("Middle bar (drag me)"), 20, "Alliance", { poi = 3 }, "Alliance")
+    if mid then mid.emph = true; Layout() end
+    StartBar("test:e", "Test", 8, "Horde", { poi = 13 }, "Horde")
+end
+W.RegisterTest("Battleground timers", function() return db and (db.enabled or db.queue or db.flag) end, W.CapTimersTest)
+
 W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
     W.Title(p, L("Battleground timers"))
     W.Check(p, L("Base capture timers"), function() return db.enabled end,
@@ -656,16 +687,14 @@ W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
     local times = {}
     for _, s in ipairs({ 30, 45, 60, 64, 90, 120, 240, 300 }) do times[#times + 1] = { s, string.format(L("%d s"), s) } end
     W.Cycle(p, 80, times, function() return db.capTime end, function(v) db.capTime = v end):SetPoint("TOPLEFT", 280, -143)
-    W.Button(p, L("Test"), 110, 22, function()
-        StartBar("test:a", "Test Alliance", 60, "Alliance", { poi = 3 }, "Alliance")
-        StartBar("test:h", "Test Horde", 30, "Horde", { poi = 13 }, "Horde")
-        StartBar("test:g", L("Battle begins"), 45, "other", 136106)
-        StartBar("test:f", L("Flag respawns"), FLAG_RESPAWN, "other", 134420)
-        StartBar("test:e", "Test", 8, "Horde", { poi = 13 }, "Horde") -- shows the middle + countdown at once
-    end):SetPoint("TOPLEFT", 16, -178)
+    W.Button(p, L("Test"), 110, 22, function() W.CapTimersTest() end):SetPoint("TOPLEFT", 16, -178)
     W.Button(p, L("Reset position"), 160, 22, function()
-        db.point = { "TOP", "TOP", 0, -150 }
+        db.point, db.emphPoint = { "TOP", "TOP", 0, -150 }, nil
         if anchor then Place() end
+        if emphAnchor then
+            emphAnchor:ClearAllPoints()
+            emphAnchor:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+        end
     end):SetPoint("TOPLEFT", 132, -178)
     W.Button(p, L("Map points now"), 200, 22, MapDump):SetPoint("TOPLEFT", 298, -178)
     local info = W.Label(p, L("A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."),

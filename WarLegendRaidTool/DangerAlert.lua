@@ -135,6 +135,15 @@ local function Apply()
 end
 W.On("PLAYER_ENTERING_WORLD", Apply)
 
+local function Test()
+    Create()
+    seen.test = "pvp"
+    Refresh()
+    if db.sound and SOUNDS.pvp then PlaySound(SOUNDS.pvp, "Ambience") end
+    C_Timer.After(5, function() seen.test = nil; Refresh() end)
+end
+W.RegisterTest("Danger alert", function() return db and db.enabled end, Test)
+
 W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     W.Title(p, L("Danger alert"))
     W.Check(p, L("Warn me when danger is near (open world)"), function() return db.enabled end,
@@ -145,13 +154,7 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
         :SetPoint("TOPLEFT", 32, -90)
     W.Check(p, L("Play a sound"), function() return db.sound end, function(v) db.sound = v end):SetPoint("TOPLEFT", 32, -114)
     W.Check(p, L("Lock the warning"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 32, -138)
-    W.Button(p, L("Test"), 110, 22, function()
-        Create()
-        seen.test = "pvp"
-        Refresh()
-        if db.sound and SOUNDS.pvp then PlaySound(SOUNDS.pvp, "Ambience") end
-        C_Timer.After(5, function() seen.test = nil; Refresh() end)
-    end):SetPoint("TOPLEFT", 16, -172)
+    W.Button(p, L("Test"), 110, 22, Test):SetPoint("TOPLEFT", 16, -172)
     W.Button(p, L("Reset position"), 160, 22, function()
         db.point = { "TOP", "TOP", 0, -90 }
         if frame then Place() end

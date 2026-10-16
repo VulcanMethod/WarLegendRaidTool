@@ -323,6 +323,25 @@ local function BuildSide(f, pvp, side)
     end
 end
 
+-- test mode of the frames: on / off, and off by itself after 30 seconds (a newer test keeps its own stop)
+local testRun = 0
+local function ToggleTest(onlyStart)
+    local pvp = WarLegendPvP
+    if not (pvp and pvp.ToggleTestmode and pvp.states) then return end
+    if pvp.states.testmodeActive then
+        if not onlyStart then pvp.ToggleTestmode() end
+        return
+    end
+    pvp.ToggleTestmode()
+    testRun = testRun + 1
+    local run = testRun
+    W.After(30, function()
+        if run == testRun and pvp.states.testmodeActive and not InCombatLockdown() then pvp.ToggleTestmode() end
+    end)
+end
+W.RegisterTest("Battleground frames", function() return db and db.enabled and not InCombatLockdown() end,
+    function() if W.LoadPvP() then ToggleTest(true) end end)
+
 W.RegisterModule("PvPFrames", "Battleground frames", function(p)
     W.Title(p, L("Battleground frames"))
     if not W.LoadPvP() or not WarLegendPvP or not WarLegendPvP.db then
@@ -365,7 +384,7 @@ W.RegisterModule("PvPFrames", "Battleground frames", function(p)
             function(v) pvp:SetSetting(c[2], v) end):SetPoint("TOPLEFT", 12, -92 - (i - 1) * 24)
     end
 
-    W.Button(p, L("Test mode"), 110, 22, function() pvp.ToggleTestmode() end):SetPoint("TOPLEFT", 16, -192)
+    W.Button(p, L("Test mode"), 110, 22, function() ToggleTest() end):SetPoint("TOPLEFT", 16, -192)
     W.Button(p, L("Reset"), 110, 22, function()
         W.Confirm(L("Reset all the battleground frame settings?"), function()
             pvp:ResetSettings()

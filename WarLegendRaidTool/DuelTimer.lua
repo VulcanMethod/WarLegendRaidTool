@@ -144,6 +144,13 @@ end)
 W.On("DUEL_INBOUNDS", function() if boundsEnd and frame then boundsEnd = nil; frame:Hide() end end)
 W.On("DUEL_FINISHED", function() if frame then boundsEnd = nil; frame:Hide() end end)
 
+local function Test()
+    Countdown(3)
+    W.After(1, function() Countdown(2) end)
+    W.After(2, function() Countdown(1) end)
+end
+W.RegisterTest("Duel timer", function() return db and db.enabled end, Test)
+
 W.RegisterModule("DuelTimer", L("Duel timer"), function(p)
     W.Title(p, L("Duel timer"))
     W.Check(p, L("Show a big countdown for duels"), function() return db.enabled end,
@@ -160,11 +167,7 @@ W.RegisterModule("DuelTimer", L("Duel timer"), function(p)
     local sizes = {}
     for _, s in ipairs({ 48, 60, 72, 96, 120 }) do sizes[#sizes + 1] = { s, tostring(s) } end
     W.Cycle(p, 70, sizes, function() return db.size end, function(v) db.size = v end):SetPoint("TOPLEFT", 90, -121)
-    W.Button(p, L("Test"), 110, 22, function()
-        Countdown(3)
-        W.After(1, function() Countdown(2) end)
-        W.After(2, function() Countdown(1) end)
-    end):SetPoint("TOPLEFT", 16, -160)
+    W.Button(p, L("Test"), 110, 22, Test):SetPoint("TOPLEFT", 16, -160)
     W.Button(p, L("Reset position"), 160, 22, function()
         db.point = { "CENTER", "CENTER", 0, 160 }
         if frame then Place() end
