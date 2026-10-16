@@ -166,6 +166,27 @@ local UI = {}
 
 local function MapName(g) return db.names[g.m] or (g.n ~= "" and g.n) or ("#" .. tostring(g.m)) end
 
+-- the battleground's Mark of Honor icon (item icon read from the client, else the file)
+local MARK_ITEM = { [489] = 20558, [2106] = 20558, [529] = 20559, [2107] = 20559, [30] = 20560 } -- Warsong, Arathi, Alterac
+local DARKSPEAR_MARK, DARKSPEAR_ICON = 274895, "Interface\\Icons\\INV_Misc_Rune_14" -- Darkspear Islands Mark of Honor (wowhead.com/forever)
+local function MapIcon(g)
+    local item = MARK_ITEM[g.m]
+    if not item then
+        local name = (MapName(g) or ""):lower()
+        if name:find("darkspear", 1, true) or name:find("sombrelance", 1, true) then item = DARKSPEAR_MARK end
+    end
+    if not item then return nil end
+    local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(item)
+    if not icon and GetItemIcon then icon = GetItemIcon(item) end
+    return icon or (item == DARKSPEAR_MARK and DARKSPEAR_ICON) or nil
+end
+
+-- "|Ticon|t Name" for the tables
+local function MapLabel(g)
+    local icon = MapIcon(g)
+    return (icon and ("|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t ") or "") .. MapName(g)
+end
+
 local function InRange(g)
     return (db.range or 0) == 0 or (g.e or 0) >= time() - db.range * 86400
 end
@@ -184,7 +205,7 @@ local function RefreshGames()
     local rows = {}
     for i, g in ipairs(db.games) do
         if InRange(g) then
-            rows[#rows + 1] = { index = i, cells = { date("%d/%m %H:%M", g.e or 0), MapName(g), ResultText(g), Clock(g.d), #SplitNames(g.p) } }
+            rows[#rows + 1] = { index = i, cells = { date("%d/%m %H:%M", g.e or 0), MapLabel(g), ResultText(g), Clock(g.d), #SplitNames(g.p) } }
         end
     end
     UI.games:SetData(rows)
@@ -303,9 +324,9 @@ local function BuildRecords(p)
         wipe(mapValues)
         local seen = {}
         for _, g in ipairs(db.games) do
-            if not seen[g.m] then seen[g.m] = true; mapValues[#mapValues + 1] = { g.m, MapName(g) } end
+            if not seen[g.m] then seen[g.m] = true; mapValues[#mapValues + 1] = { g.m, MapLabel(g) } end
         end
-        table.sort(mapValues, function(a, b) return a[2] < b[2] end)
+        table.sort(mapValues, function(a, b) return (db.names[a[1]] or a[2]) < (db.names[b[1]] or b[2]) end)
         if not seen[db.recordMap] and mapValues[1] then db.recordMap = mapValues[1][1] end
         cycle.Sync()
         RefreshRecords()
