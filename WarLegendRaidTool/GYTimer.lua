@@ -155,7 +155,12 @@ W.slash.gy = function()
     end
 end
 W.RegisterTest("Graveyard timer", function() return db and db.enabled and not standalone end,
-    function() if not testMode then W.slash.gy() end end)
+    function() if not testMode then W.slash.gy() end end,
+    function()
+        if not testMode then return end
+        testMode, nextWave, testRun = false, nil, testRun + 1
+        Refresh()
+    end)
 
 W.RegisterModule("GYTimer", "Graveyard timer", function(p)
     W.Title(p, L("Graveyard timer"))

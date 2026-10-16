@@ -78,6 +78,7 @@ local function Create()
 end
 
 local hideAt, boundsEnd, lastShown
+local testRun = 0 -- a stopped test cancels its pending numbers
 local function Tick()
     if not frame:IsShown() then return end
     local now = GetTime()
@@ -123,7 +124,8 @@ local function Countdown(n)
         PlaySound(SOUNDKIT.RAID_WARNING, "Master")
     end
     if n == 1 then
-        W.After(1, function() Show(L("Fight!"), 0.2, 1, 0.2, nil, 1.2) end)
+        local run = testRun
+        W.After(1, function() if run == testRun then Show(L("Fight!"), 0.2, 1, 0.2, nil, 1.2) end end)
     end
 end
 
@@ -145,11 +147,18 @@ W.On("DUEL_INBOUNDS", function() if boundsEnd and frame then boundsEnd = nil; fr
 W.On("DUEL_FINISHED", function() if frame then boundsEnd = nil; frame:Hide() end end)
 
 local function Test()
+    testRun = testRun + 1
+    local run = testRun
     Countdown(3)
-    W.After(1, function() Countdown(2) end)
-    W.After(2, function() Countdown(1) end)
+    W.After(1, function() if run == testRun then Countdown(2) end end)
+    W.After(2, function() if run == testRun then Countdown(1) end end)
 end
-W.RegisterTest("Duel timer", function() return db and db.enabled end, Test)
+local function StopTest()
+    testRun = testRun + 1
+    boundsEnd, hideAt = nil, nil
+    if frame then frame:Hide() end
+end
+W.RegisterTest("Duel timer", function() return db and db.enabled end, Test, StopTest)
 
 W.RegisterModule("DuelTimer", L("Duel timer"), function(p)
     W.Title(p, L("Duel timer"))

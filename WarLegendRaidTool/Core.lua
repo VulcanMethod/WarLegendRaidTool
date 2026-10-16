@@ -1304,18 +1304,41 @@ end
 -- button in the window header and /wl test run the tests of the modules switched on, all at once, so each
 -- thing can be seen and dragged to its place. label: English (translated when printed).
 W.tests = {}
-function W.RegisterTest(label, enabled, run)
-    W.tests[#W.tests + 1] = { label = label, enabled = enabled, run = run }
+-- stop: hides what run showed (called by "Stop test" for every module, switched on or not)
+function W.RegisterTest(label, enabled, run, stop)
+    W.tests[#W.tests + 1] = { label = label, enabled = enabled, run = run, stop = stop }
 end
 
 W.AddFR({
     ["Test all"] = "Tout tester",
+    ["Stop test"] = "Arrêter le test",
+    ["Test stopped."] = "Test arrêté.",
     ["Test: %s. Drag them to move them (when not locked)."] =
         "Test : %s. Fais-les glisser pour les déplacer (s'ils ne sont pas verrouillés).",
     ["Test: no module switched on."] = "Test : aucun module activé.",
     ["Shows every module switched on, with fake data, so you can see and move them."] =
         "Affiche tous les modules activés avec de fausses données, pour les voir et les déplacer.",
 })
+-- the header button reads "Stop test" while a test runs; the longest test ends by itself after about 60 s
+local testing, testRun, testButton = false, 0, nil
+local function SetTesting(on)
+    testing = on
+    if testButton then testButton:SetText(on and L("Stop test") or L("Test all")) end
+end
+function W.StopTests(quiet)
+    for _, t in ipairs(W.tests) do
+        if t.stop then
+            local ok, err = pcall(t.stop)
+            if not ok then geterrorhandler()(err) end
+        end
+    end
+    SetTesting(false)
+    if not quiet then W.Print(L("Test stopped.")) end
+end
+function W.ToggleTests()
+    if testing then W.StopTests() else W.TestAll() end
+end
+function W.SetTestButton(b) testButton = b end
 function W.TestAll()
     local shown = {}
     for _, t in ipairs(W.tests) do
@@ -1327,6 +1350,10 @@ function W.TestAll()
     end
     if #shown == 0 then W.Print(L("Test: no module switched on.")); return end
     W.Print(string.format(L("Test: %s. Drag them to move them (when not locked)."), table.concat(shown, ", ")))
+    SetTesting(true)
+    testRun = testRun + 1
+    local run = testRun
+    W.After(65, function() if testing and run == testRun then SetTesting(false) end end)
 end
 
 W.modules = {}
@@ -1529,8 +1556,11 @@ function W.BuildMain()
     local search = W.EditBox(main, 170, 40)
     search:SetPoint("RIGHT", langBtn, "LEFT", -10, 0)
     -- "Test all": every module switched on shows itself at once (EllesmereUI-like test mode)
-    W.Button(main, L("Test all"), 90, 20, function() W.TestAll() end,
-        { L("Shows every module switched on, with fake data, so you can see and move them.") }):SetPoint("RIGHT", search, "LEFT", -10, 0)
+    local testBtn = W.Button(main, L("Test all"), 110, 20, function() W.ToggleTests() end,
+        { L("Shows every module switched on, with fake data, so you can see and move them.") })
+    testBtn:SetPoint("RIGHT", search, "LEFT", -10, 0)
+    W.SetTestButton(testBtn)
+    if testing then testBtn:SetText(L("Stop test")) end
     local hint = search:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hint:SetPoint("LEFT", 4, 0)
     hint:SetText(L("Search an option..."))
@@ -1963,8 +1993,10 @@ W.AddFR({
     ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
     ["Raid modules loaded at the loading screen: "] = "Modules de raid chargés à l'écran de chargement : ",
 })
--- /wl test: the test of every module switched on, at once
-W.slash.test = function() W.TestAll() end
+-- /wl test: the test of every module switched on, at once (again: stops it); /wl test stop
+W.slash.test = function(rest)
+    if rest and rest:lower():match("^%s*stop") then W.StopTests() else W.ToggleTests() end
+end
 
 W.slash.perf = function()
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
@@ -2052,6 +2084,7 @@ W.AddFR({
     ["big icon when I am crowd controlled"] = "grosse icône quand je suis sous contrôle (CC)",
     ["big countdown for duels (start, out of the duel area)"] = "gros compte à rebours pour les duels (début, hors de la zone)",
     ["test every module switched on at once (to see and move them)"] = "tester tous les modules activés en même temps (pour les voir et les déplacer)",
+    ["stop the test"] = "arrêter le test",
     ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
@@ -2090,6 +2123,7 @@ local HELP = {
     { "/wl cc", "big icon when I am crowd controlled" },
     { "/wl duel", "big countdown for duels (start, out of the duel area)" },
     { "/wl test", "test every module switched on at once (to see and move them)" },
+    { "/wl test stop", "stop the test" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))

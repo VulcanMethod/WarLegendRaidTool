@@ -665,7 +665,8 @@ function W.CapTimersTest()
     if mid then mid.emph = true; Layout() end
     StartBar("test:e", "Test", 8, "Horde", { poi = 13 }, "Horde")
 end
-W.RegisterTest("Battleground timers", function() return db and (db.enabled or db.queue or db.flag) end, W.CapTimersTest)
+W.RegisterTest("Battleground timers", function() return db and (db.enabled or db.queue or db.flag) end, W.CapTimersTest,
+    function() StopMatching("test:"); if bigCount then bigCount:Hide() end end)
 
 W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
     W.Title(p, L("Battleground timers"))

@@ -160,7 +160,8 @@ local function Test()
     frame:Show()
     C_Timer.After(5, function() if frame then frame:Hide() end end)
 end
-W.RegisterTest("Crowd control alert", function() return db and db.enabled end, Test)
+W.RegisterTest("Crowd control alert", function() return db and db.enabled end, Test,
+    function() if frame then frame:Hide() end end)
 
 W.RegisterModule("CCAlert", L("Crowd control alert"), function(p)
     W.Title(p, L("Crowd control alert"))

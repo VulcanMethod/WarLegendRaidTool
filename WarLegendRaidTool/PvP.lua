@@ -340,7 +340,12 @@ local function ToggleTest(onlyStart)
     end)
 end
 W.RegisterTest("Battleground frames", function() return db and db.enabled and not InCombatLockdown() end,
-    function() if W.LoadPvP() then ToggleTest(true) end end)
+    function() if W.LoadPvP() then ToggleTest(true) end end,
+    function()
+        local pvp = WarLegendPvP
+        testRun = testRun + 1
+        if pvp and pvp.states and pvp.states.testmodeActive and not InCombatLockdown() then pvp.ToggleTestmode() end
+    end)
 
 W.RegisterModule("PvPFrames", "Battleground frames", function(p)
     W.Title(p, L("Battleground frames"))

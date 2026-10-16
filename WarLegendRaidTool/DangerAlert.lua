@@ -142,7 +142,8 @@ local function Test()
     if db.sound and SOUNDS.pvp then PlaySound(SOUNDS.pvp, "Ambience") end
     C_Timer.After(5, function() seen.test = nil; Refresh() end)
 end
-W.RegisterTest("Danger alert", function() return db and db.enabled end, Test)
+W.RegisterTest("Danger alert", function() return db and db.enabled end, Test,
+    function() if seen.test then seen.test = nil; Refresh() end end)
 
 W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     W.Title(p, L("Danger alert"))
