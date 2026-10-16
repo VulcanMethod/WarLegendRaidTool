@@ -1261,12 +1261,12 @@ local CATEGORIES = {
     { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "MarksBar", "InviteTool", "AutoPromote" } },
         { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "AutoLog", "Focus", "Summon" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "CCAlert", "AutoLog", "Focus", "Summon" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
         { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "CapTimers", "BGStats" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "VersionCheck", "Bugs" } },
+        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "DangerAlert", "CooldownText", "VersionCheck", "Bugs" } },
     } },
 }
 
@@ -1770,6 +1770,8 @@ W.AddFR({
     ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
     ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
     ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
+    ["warning when an enemy player or a dangerous mob is near"] = "alerte quand un joueur ennemi ou un monstre dangereux approche",
+    ["big icon when I am crowd controlled"] = "grosse icône quand je suis sous contrôle (CC)",
     ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
@@ -1803,6 +1805,8 @@ local HELP = {
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
     { "/wl bgmsg", "last battleground messages (to copy)" },
     { "/wl caps", "battleground timers: captures, gates, queue, flag (Capping style)" },
+    { "/wl danger", "warning when an enemy player or a dangerous mob is near" },
+    { "/wl cc", "big icon when I am crowd controlled" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))

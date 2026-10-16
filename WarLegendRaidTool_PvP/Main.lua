@@ -281,7 +281,7 @@ local GENERAL_KEYS = { "Style", "Locked", "EnableMouseWheelPlayerTargeting", "Sh
 
 -- modules the /wl tab can switch on / off (name, health bar and spec / class icon always shown)
 WarLegendPvP.ToggleableModules = { "Level", "Power", "CastBar", "Role", "RaidTargetIcon", "TargetIndicatorNumeric",
-	"TargetIndicatorSymbolic", "CombatIndicator", "ObjectiveAndRespawn", "Dispel" }
+	"TargetIndicatorSymbolic", "CombatIndicator", "ObjectiveAndRespawn", "Dispel", "CrowdControl" }
 
 local function savedSide(side)
 	local saved = WarLegendRaidTool_PvPDB
@@ -300,6 +300,11 @@ function WarLegendPvP:BuildProfile()
 		local s = savedSide(side)
 		local sideConfig = profile[side]
 		if s.Enabled ~= nil then sideConfig.Enabled = s.Enabled end
+		-- WarLegend: right / middle click on an ally casts my dispel spells (Modules/Dispel.lua)
+		if side == "Allies" and s.ClickDispel then
+			sideConfig.RightButtonType = "Dispel"
+			sideConfig.MiddleButtonType = "Dispel"
+		end
 		for _, cfg in ipairs(sideConfig.playerCountConfigs) do
 			if s.Scale then cfg.Framescale = s.Scale end
 			if s.Width then cfg.BarWidth = s.Width end
@@ -358,6 +363,8 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return s.Height or cfg.BarHeight
 	elseif key == "HealthText" then
 		return cfg.ButtonModules.healthBar and cfg.ButtonModules.healthBar.HealthTextEnabled
+	elseif key == "ClickDispel" then
+		return s.ClickDispel and true or false
 	end
 end
 

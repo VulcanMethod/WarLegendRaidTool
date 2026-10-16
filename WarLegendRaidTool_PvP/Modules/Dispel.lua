@@ -87,6 +87,16 @@ local CLASS_BUFFS = {
 	},
 }
 
+-- click to dispel (like Decursive): mouse button 2 (right) = first list, 3 (middle) = second list; the first
+-- spell I know of each list (highest version first)
+local CLASS_DISPEL_SPELLS = {
+	PRIEST = { [2] = { 527 }, [3] = { 552, 528 } },          -- Dispel Magic / Abolish, Cure Disease
+	PALADIN = { [2] = { 4987, 1152 }, [3] = { 1152 } },      -- Cleanse (or Purify) / Purify
+	DRUID = { [2] = { 2782 }, [3] = { 2893, 8946 } },        -- Remove Curse / Abolish, Cure Poison
+	MAGE = { [2] = { 475 } },                                -- Remove Lesser Curse
+	SHAMAN = { [2] = { 526 }, [3] = { 2870 } },              -- Cure Poison / Cure Disease
+}
+
 local DISPEL_COLOR = {
 	Magic = { 0.2, 0.6, 1 },
 	Curse = { 0.6, 0, 1 },
@@ -128,16 +138,28 @@ local function MyClass()
 	return myBuffs, myDispels
 end
 
+-- name of the dispel spell for a mouse button (2 right, 3 middle), nil when I have none
+function WarLegendPvP.GetDispelSpell(mouseButton)
+	local list = (CLASS_DISPEL_SPELLS[W.UnitClassToken("player")] or {})[mouseButton]
+	for _, id in ipairs(list or {}) do
+		if Knows(id) then
+			local name = W.SpellName(id)
+			if name then return name end
+		end
+	end
+end
+
 ---------------------------------------------------------------------------
 -- Reading one unit (secret-safe: W.AuraByIndex gives false for an aura the client refuses)
 ---------------------------------------------------------------------------
 local MAX_DEBUFFS = 4
 
-local function ReadUnit(unit)
+-- missingOnly: the client's aura container already shows the debuffs and my buffs, only the missing ones
+local function ReadUnit(unit, missingOnly)
 	local buffs, dispels = MyClass()
 	-- an aura the client keeps secret is skipped (never shown as "?"); a run of secret ones stops the scan
 	local debuffs, border, secretRun = {}, nil, 0
-	for i = 1, 40 do
+	for i = 1, missingOnly and 0 or 40 do
 		local a = W.AuraByIndex(unit, i, "HARMFUL|RAID")
 		if a == nil then break end
 		if a == false then
@@ -176,7 +198,7 @@ local function ReadUnit(unit)
 	local shown = {}
 	for f, fam in ipairs(buffs) do
 		if have[f] then
-			shown[#shown + 1] = { icon = fam.icon }
+			if not missingOnly then shown[#shown + 1] = { icon = fam.icon } end
 		elseif fam.missing and allReadable and not (fam.mana and power ~= 0) then
 			shown[#shown + 1] = { icon = fam.icon, grey = true }
 		end
@@ -201,10 +223,25 @@ function dispel:AttachToPlayerButton(playerButton)
 	glow:Hide()
 	f.glow = glow
 
+	-- the client's aura container (secret-safe): dispellable debuffs (icon border + frame border in the
+	-- dispel type color) then my buffs on the player; the missing buffs go on the left of the frame
+	local NA = WarLegendPvP.NativeAuras
+	if not playerButton.PlayerIsEnemy and NA and NA.Available() then
+		f.native = NA.Create(f, {
+			{ key = "dispel", filter = "HARMFUL|RAID_PLAYER_DISPELLABLE", max = MAX_DEBUFFS, size = 18, dispelBorder = true, frameGlow = true },
+			{ key = "mine", filter = "HELPFUL|PLAYER", max = 4, size = 18 },
+		}, playerButton)
+		if f.native then
+			f.left = CreateFrame("Frame", nil, playerButton)
+			f.left:SetPoint("RIGHT", playerButton, "LEFT", -2, 0)
+			f.left:SetSize(1, 18)
+		end
+	end
+
 	local function Icon(i)
 		local b = f.icons[i]
 		if b then return b end
-		b = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate")
+		b = CreateFrame("Frame", nil, f.left or f, BackdropTemplateMixin and "BackdropTemplate")
 		b:SetBackdrop({ edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
 		b.tex = b:CreateTexture(nil, "ARTWORK")
 		b.tex:SetPoint("TOPLEFT", 1, -1)
@@ -222,7 +259,11 @@ function dispel:AttachToPlayerButton(playerButton)
 			local ic = Icon(n)
 			ic:SetSize(size, size)
 			ic:ClearAllPoints()
-			ic:SetPoint("LEFT", f, "LEFT", (n - 1) * (size + 2), 0)
+			if f.left then -- grows to the left of the frame
+				ic:SetPoint("RIGHT", f.left, "RIGHT", -(n - 1) * (size + 2), 0)
+			else
+				ic:SetPoint("LEFT", f, "LEFT", (n - 1) * (size + 2), 0)
+			end
 			ic.tex:SetTexture(e.icon)
 			ic.tex:SetDesaturated(grey and true or false)
 			ic:SetAlpha(grey and 0.45 or 1)
@@ -232,7 +273,7 @@ function dispel:AttachToPlayerButton(playerButton)
 		for _, d in ipairs(debuffs) do put(d, d.color[1], d.color[2], d.color[3]) end
 		for _, b in ipairs(buffs) do put(b, 0, 0, 0, b.grey) end
 		for i = n + 1, #f.icons do f.icons[i]:Hide() end
-		self:SetWidth(math.max(1, n * (size + 2)))
+		self:SetWidth(f.native and 8 * 20 or math.max(1, n * (size + 2)))
 		if border then
 			glow:SetBackdropBorderColor(border[1], border[2], border[3], 1)
 			glow:Show()
@@ -244,6 +285,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:Clear()
 		for i = 1, #f.icons do f.icons[i]:Hide() end
 		glow:Hide()
+		if f.native then NA.SetUnit(f.native, nil) end
 	end
 
 	function f:Update()
@@ -251,6 +293,15 @@ function dispel:AttachToPlayerButton(playerButton)
 		if not self.Enabled or playerButton.PlayerIsEnemy or self.testmode then return end
 		local unit = playerButton:GetUnitID()
 		if not unit or not UnitExists(unit) then return self:Clear() end
+		if f.native then
+			if f.nativeUnit ~= unit or not f.native:IsShown() then
+				f.nativeUnit = unit
+				NA.SetUnit(f.native, unit)
+			end
+			local ok, _, missing = pcall(ReadUnit, unit, true)
+			self:Show_({}, ok and missing or {}, nil)
+			return
+		end
 		local ok, debuffs, buffs, border = pcall(ReadUnit, unit)
 		if not ok then return self:Clear() end
 		self:Show_(debuffs, buffs, border)
@@ -266,8 +317,11 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:UnitIdUpdate() self:Schedule() end
 	function f:PlayerButtonSizeChanged() self:Schedule() end
 
-	function f:OnTestmodeEnabled() self.testmode = true end
-	function f:OnTestmodeDisabled() self.testmode = false; self:Clear() end
+	function f:OnTestmodeEnabled()
+		self.testmode = true
+		if f.native then NA.SetUnit(f.native, nil); f.nativeUnit = nil end
+	end
+	function f:OnTestmodeDisabled() self.testmode = false; self:Clear(); f.nativeUnit = nil end
 	function f:OnTestmodeTick()
 		self.testmode = true
 		if playerButton.PlayerIsEnemy then return end

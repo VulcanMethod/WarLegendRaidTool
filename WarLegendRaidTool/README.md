@@ -3,7 +3,7 @@
 Addon WoW **Forever** (interface 16001) de la guilde **War Legend** : groupes de raid, loot council (avec le
 nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'auras, CD de raid, préparation, présences,
 rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
-export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations et buffs de ta classe sur les alliés), chrono de cimetière (style Capping),
+export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations façon Decursive, CC sur les cadres), alerte danger, alerte de contrôle (CC), texte de recharge, chrono de cimetière (style Capping),
 historique et records des premades de BG, liste de summon.
 Commande : `/wl` (`/wl help` affiche toutes les commandes). Langues : français / anglais.
 
@@ -85,6 +85,8 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl pvp` | Réglages des cadres PvP. |
 | `/wl pvpcheck` | Vérifie si les restrictions d'addons sont actives dans ce champ de bataille. |
 | `/wl caps` | Chronos de BG au style Capping : capture des bases (Darkspear Island, Arathi 1 min, Alterac 5 min), début de la bataille, file d'attente, réapparition du drapeau. Maj-clic : /dire, Ctrl-clic : canal du BG. |
+| `/wl danger` | Alerte danger (monde ouvert) : message + son quand un joueur ennemi JcJ, un monstre « tête de mort » ou un élite rouge approche. |
+| `/wl cc` | Grosse icône au centre de l'écran quand vous êtes sous contrôle (étourdi, peur, silence...), avec le temps restant. |
 | `/wl bgmsg` | Derniers messages du champ de bataille, à copier (pour ajouter les textes de drapeau d'un nouveau BG). |
 
 Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarLegendRaidTool.toc`.

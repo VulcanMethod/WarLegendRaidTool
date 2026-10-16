@@ -518,7 +518,10 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 				type3 = false,
 				macrotext1 = false,
 				macrotext2 = false,
-				macrotext3 = false
+				macrotext3 = false,
+				spell1 = false,
+				spell2 = false,
+				spell3 = false
 			}
 
 			if ClickCastFrames[self] then
@@ -547,7 +550,16 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 					-- WoW Forever: "/targetexact First-Surname" finds nobody, use the name forms the client accepts
 					local playerName = self.PlayerDetails.PlayerName
 
-					if bindingType == "Target" then
+					-- WarLegend: "Dispel" casts a dispel spell of my class on this ally (Modules/Dispel.lua),
+					-- a plain secure spell attribute on the button's unit, like Decursive's clicks
+					local dispelSpell = bindingType == "Dispel" and not self.PlayerIsEnemy
+						and WarLegendPvP.GetDispelSpell and WarLegendPvP.GetDispelSpell(i)
+					if dispelSpell then
+						newAttributes['type' .. i] = "spell"
+						newAttributes['spell' .. i] = dispelSpell
+					elseif bindingType == "Dispel" then
+						newAttributes['macrotext' .. i] = ""
+					elseif bindingType == "Target" then
 						newAttributes['macrotext' .. i] = WarLegendPvP.GetTargetMacro(playerName)
 					elseif bindingType == "Focus" then
 						newAttributes['macrotext' .. i] = '/targetexact ' .. WarLegendPvP.GetTargetableName(playerName) .. '\n' ..

@@ -48,6 +48,7 @@ W.AddFR({
     ["not available on this client"] = "pas disponible sur ce client",
     ["no battleground message received since the last /reload"] = "aucun message de champ de bataille reçu depuis le dernier /reload",
     ["Battleground messages"] = "Messages du champ de bataille",
+    ["Right-click: dispel, middle-click: 2nd dispel (my class)"] = "Clic droit : dissiper, clic milieu : 2e dissipation (ma classe)",
     ["ally auras: %d readable, %d secret"] = "auras des alliés : %d lisibles, %d secrètes",
     ["Not available on WoW Forever: auras, diminishing returns, trinket and racial (enemy data kept secret in battlegrounds)."] =
         "Pas disponible sur WoW Forever : auras, rendements décroissants, bijou et raciaux (infos ennemies secrètes en champ de bataille).",
@@ -188,6 +189,11 @@ local function BuildSide(f, pvp, side)
 
     W.Check(f, L("Health in %"), function() return pvp:GetSideSetting(side, "HealthText") end,
         function(v) pvp:SetSideSetting(side, "HealthText", v) end):SetPoint("TOPLEFT", 12, -62)
+    if side == "Allies" and pvp.GetDispelSpell then
+        W.Check(f, L("Right-click: dispel, middle-click: 2nd dispel (my class)"),
+            function() return pvp:GetSideSetting(side, "ClickDispel") end,
+            function(v) pvp:SetSideSetting(side, "ClickDispel", v) end):SetPoint("TOPLEFT", 220, -62)
+    end
 
     W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -94)
     for i, moduleName in ipairs(pvp.ToggleableModules) do

@@ -34,6 +34,8 @@ Modules\Role.lua
 Modules\SpecClassProirity.lua
 Modules\TargetIndicatorNumeric.lua
 Modules\TargetIndicatorSymbolic.lua
+Modules\NativeAuras.lua
 Modules\Dispel.lua
+Modules\CrowdControl.lua
 
 Startup.lua
