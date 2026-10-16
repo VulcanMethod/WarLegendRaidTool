@@ -157,11 +157,13 @@ function WarLegendPvP:MarkRaidFrameFlag(name, hasFlag)
 		for frame, tex in pairs(raidFlags) do tex:Hide() end
 	end
 	if not name then return end
+	local carrier = self:GetPlayerbuttonByName(name)
+	if not carrier then return end -- unknown name form: no frame is marked rather than the wrong ones
 	local flagFaction = (self.UserFaction == "Horde") and "Alliance" or "Horde" -- an ally carries the enemy flag
 	for _, frame in ipairs(raidFrameButtons()) do
 		local unit = frameUnit(frame)
 		local unitName = unit and self:GetReadableUnitName(unit)
-		if unitName and self:GetPlayerbuttonByName(unitName) == self:GetPlayerbuttonByName(name) then
+		if unitName and self:GetPlayerbuttonByName(unitName) == carrier then
 			local tex = raidFlags[frame]
 			if not tex then
 				tex = frame:CreateTexture(nil, "OVERLAY", nil, 7)

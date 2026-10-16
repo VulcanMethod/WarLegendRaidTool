@@ -39,16 +39,16 @@ local function ScanTrials()
     lastScan = GetTime()
     local members = W.GuildMembers()
     if #members == 0 then return end
-    local now, at = time(), {}
+    local now, rankOf = time(), {}
     for _, m in ipairs(members) do
-        if m.rank == db.trialRank then
-            local k = m.full:lower()
-            at[k] = true
-            if not db.trials[k] then db.trials[k] = now end
-        end
+        local k = m.full:lower()
+        rankOf[k] = m.rank
+        if m.rank == db.trialRank and not db.trials[k] then db.trials[k] = now end
     end
-    for k in pairs(db.trials) do
-        if not at[k] then db.trials[k] = nil end -- promoted or gone
+    -- promoted: forgotten. Not in the roster: kept (the roster can list online members only on Classic),
+    -- forgotten after 6 months
+    for k, since in pairs(db.trials) do
+        if (rankOf[k] and rankOf[k] ~= db.trialRank) or now - since > 180 * 86400 then db.trials[k] = nil end
     end
 end
 

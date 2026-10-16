@@ -21,7 +21,7 @@ local crowdControl = WarLegendPvP:NewButtonModule({
 	moduleName = "CrowdControl",
 	localizedModuleName = W.L("Crowd control on the class icon"),
 	defaultSettings = defaultSettings,
-	events = { "UnitIdUpdate", "PlayerButtonSizeChanged", "UnitDied", "OnTestmodeEnabled", "OnTestmodeDisabled", "OnTestmodeTick" },
+	events = { "UnitIdUpdate", "PlayerButtonSizeChanged", "UnitDied", "UnitRevived", "OnTestmodeEnabled", "OnTestmodeDisabled", "OnTestmodeTick" },
 	enabledInThisExpansion = true,
 	attachSettingsToButton = true
 })
@@ -75,6 +75,7 @@ function crowdControl:AttachToPlayerButton(playerButton)
 	function f:UnitIdUpdate() self:Update() end
 	function f:PlayerButtonSizeChanged() self:Update() end
 	function f:UnitDied() if self.native then NA.SetUnit(self.native, nil) end end
+	function f:UnitRevived() self:Update() end -- back alive: the unit is the same, show its CC again
 
 	function f:OnTestmodeEnabled()
 		self.testmode = true

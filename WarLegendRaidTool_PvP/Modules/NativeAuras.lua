@@ -66,10 +66,13 @@ local function InitButton(button, group, glowParent)
 		AddDispelTexture(button, border)
 	end
 	if group.frameGlow and glowParent then
-		-- colored by the client with the dispel type, drawn around the whole unit frame
-		local glow = glowParent:CreateTexture(nil, "OVERLAY")
-		glow:SetPoint("TOPLEFT", glowParent, "TOPLEFT", -3, 3)
-		glow:SetPoint("BOTTOMRIGHT", glowParent, "BOTTOMRIGHT", 3, -3)
+		-- colored by the client with the dispel type, drawn around the whole unit frame. Its holder is a child of
+		-- the aura button: hidden with it when the aura goes away
+		local holder = CreateFrame("Frame", nil, button)
+		holder:SetPoint("TOPLEFT", glowParent, "TOPLEFT", -3, 3)
+		holder:SetPoint("BOTTOMRIGHT", glowParent, "BOTTOMRIGHT", 3, -3)
+		local glow = holder:CreateTexture(nil, "OVERLAY")
+		glow:SetAllPoints(holder)
 		AddDispelTexture(button, glow)
 	end
 	if Try(button, "SetMouseMotionEnabled", false) == nil then button:EnableMouse(false) end

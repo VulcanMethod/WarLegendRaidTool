@@ -310,7 +310,8 @@ end
 ---------------------------------------------------------------------------
 -- Gates, flag respawn, queue (left to Capping when it is loaded)
 ---------------------------------------------------------------------------
-local function Extras() return db and db.enabled and not CappingLoaded() end
+-- each of these bars has its own checkbox (db.queue, db.flag), the capture box does not switch them off
+local function Extras() return db and not CappingLoaded() end
 
 -- Enum.StartTimerType.PvPBeginTimer = 0
 W.On("START_TIMER", function(timerType, timeSeconds)
@@ -398,7 +399,9 @@ local function FindScoreWidgets()
         if UI.GetIconAndTextWidgetVisualizationInfo then
             local okT, t = pcall(UI.GetIconAndTextWidgetVisualizationInfo, id)
             local text = okT and t and W.Safe(t.text)
-            if type(text) == "string" and text:match("%d+%s*/%s*%d+") then texts[#texts + 1] = id end
+            -- a score counter ("1200/2000"), not a flag counter ("1/3"): the max is at least 100
+            local max = type(text) == "string" and tonumber(text:match("%d+%s*/%s*(%d+)"))
+            if max and max >= 100 then texts[#texts + 1] = id end
         end
         if #texts == 2 then return { kind = "text", ids = texts } end
     end
@@ -492,7 +495,15 @@ local function Zone()
     Snapshot()
 end
 W.On("PLAYER_ENTERING_WORLD", function() if anchor then StopMatching("cap:") end; Zone() end)
-W.On("ZONE_CHANGED_NEW_AREA", Zone)
+-- a new area inside the same battleground keeps the bars and the score samples
+local lastZoneInstance
+W.On("ZONE_CHANGED_NEW_AREA", function()
+    local id = InstanceID()
+    if id and id == lastZoneInstance then return end
+    lastZoneInstance = id
+    Zone()
+end)
+W.On("PLAYER_ENTERING_WORLD", function() lastZoneInstance = InstanceID() end)
 
 ---------------------------------------------------------------------------
 -- Panel
