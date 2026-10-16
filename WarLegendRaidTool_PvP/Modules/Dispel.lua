@@ -305,9 +305,23 @@ function dispel:AttachToPlayerButton(playerButton)
 		if f.leftNative then NA.SetUnit(f.leftNative, nil) end
 	end
 
+	-- right of the class icon when it sits on the right of the frame (ally default), else against the bar
+	function f:Anchor()
+		local icon = playerButton.SpecClassPriorityOne
+		local target, x = playerButton, 2
+		if icon and icon.Enabled ~= false and icon:IsShown() and (icon:GetWidth() or 0) > 1 then
+			local iconLeft, barRight = icon:GetLeft(), playerButton:GetRight()
+			if iconLeft and barRight and iconLeft >= barRight - 2 then target = icon end
+		end
+		self:ClearAllPoints()
+		self:SetPoint("LEFT", target, "RIGHT", x, 0)
+	end
+
 	function f:Update()
 		self.pending = false
-		if not self.Enabled or playerButton.PlayerIsEnemy or self.testmode then return end
+		if not self.Enabled or playerButton.PlayerIsEnemy then return end
+		self:Anchor()
+		if self.testmode then return end
 		local unit = playerButton:GetUnitID()
 		if not unit or not UnitExists(unit) then return self:Clear() end
 		if f.native then
@@ -344,6 +358,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:OnTestmodeTick()
 		self.testmode = true
 		if playerButton.PlayerIsEnemy then return end
+		self:Anchor()
 		local buffs = MyClass()
 		local shown = {}
 		for _, fam in ipairs(buffs) do shown[#shown + 1] = { icon = fam.icon, grey = math.random(1, 2) == 1 } end

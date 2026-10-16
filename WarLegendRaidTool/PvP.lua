@@ -49,6 +49,7 @@ W.AddFR({
     ["no battleground message received since the last /reload"] = "aucun message de champ de bataille reçu depuis le dernier /reload",
     ["Battleground messages"] = "Messages du champ de bataille",
     ["Out of range: grey"] = "Hors de portée : griser",
+    ["Class icon"] = "Icône de classe",
     ["Range:"] = "Portée :",
     ["Right-click: dispel, middle-click: 2nd dispel (my class)"] = "Clic droit : dissiper, clic milieu : 2e dissipation (ma classe)",
     ["ally auras: %d readable, %d secret"] = "auras des alliés : %d lisibles, %d secrètes",
@@ -205,6 +206,9 @@ local function BuildSide(f, pvp, side)
     W.Label(f, L("Range:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 236, -92)
     W.Cycle(f, 70, RANGES, function() return pvp:GetSideSetting(side, "Range") end,
         function(v) pvp:SetSideSetting(side, "Range", v) end):SetPoint("TOPLEFT", 290, -87)
+    -- the class / spec icon (on the right of the ally frames: the debuffs then stick to the bar)
+    W.Check(f, L("Class icon"), function() return pvp:GetSideSetting(side, "Modules", "SpecClassPriorityOne") end,
+        function(v) pvp:SetSideSetting(side, "Modules", v, "SpecClassPriorityOne") end):SetPoint("TOPLEFT", 380, -86)
 
     W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -118)
     for i, moduleName in ipairs(pvp.ToggleableModules) do
