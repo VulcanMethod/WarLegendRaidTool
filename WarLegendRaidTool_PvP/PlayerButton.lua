@@ -716,6 +716,28 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 				end
 			end
 			self.wasInRange = inRange
+			self:ApplyRangeDesaturation()
+		end
+	end
+
+	-- WarLegend: out of range = grey health bar and class icon (option per side, RangeIndicator_Desaturate)
+	function playerButton:ApplyRangeDesaturation()
+		local grey = self.config and self.config.RangeIndicator_Enabled and self.config.RangeIndicator_Desaturate
+			and self.wasInRange == false
+		local bar = self.healthBar
+		local details = self.PlayerDetails
+		local color = details and details.PlayerClassColor
+		if bar and color then
+			if grey then
+				local l = (0.3 * color.r + 0.59 * color.g + 0.11 * color.b) * 0.6
+				bar:SetStatusBarColor(l, l, l)
+			else
+				bar:SetStatusBarColor(color.r, color.g, color.b)
+			end
+		end
+		local spec = self.SpecClassPriorityOne
+		if spec and spec.SpecClassIcon and spec.SpecClassIcon.SetDesaturated then
+			spec.SpecClassIcon:SetDesaturated(grey and true or false)
 		end
 	end
 

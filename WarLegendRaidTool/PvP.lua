@@ -48,6 +48,8 @@ W.AddFR({
     ["not available on this client"] = "pas disponible sur ce client",
     ["no battleground message received since the last /reload"] = "aucun message de champ de bataille reçu depuis le dernier /reload",
     ["Battleground messages"] = "Messages du champ de bataille",
+    ["Out of range: grey"] = "Hors de portée : griser",
+    ["Range:"] = "Portée :",
     ["Right-click: dispel, middle-click: 2nd dispel (my class)"] = "Clic droit : dissiper, clic milieu : 2e dissipation (ma classe)",
     ["ally auras: %d readable, %d secret"] = "auras des alliés : %d lisibles, %d secrètes",
     ["Not available on WoW Forever: auras, diminishing returns, trinket and racial (enemy data kept secret in battlegrounds)."] =
@@ -173,6 +175,8 @@ local WIDTHS, HEIGHTS, SCALES = {}, {}, {}
 for _, v in ipairs({ 140, 160, 180, 200, 220, 240, 260 }) do WIDTHS[#WIDTHS + 1] = { v, tostring(v) } end
 for _, v in ipairs({ 18, 22, 26, 28, 32, 38, 47 }) do HEIGHTS[#HEIGHTS + 1] = { v, tostring(v) } end
 for _, v in ipairs({ 0.8, 0.9, 1, 1.1, 1.2, 1.3 }) do SCALES[#SCALES + 1] = { v, tostring(v) } end
+local RANGES = {}
+for _, v in ipairs({ 10, 20, 30, 40 }) do RANGES[#RANGES + 1] = { v, v .. " m" } end
 
 -- the frames of one side (Enemies / Allies)
 local function BuildSide(f, pvp, side)
@@ -195,7 +199,14 @@ local function BuildSide(f, pvp, side)
             function(v) pvp:SetSideSetting(side, "ClickDispel", v) end):SetPoint("TOPLEFT", 220, -62)
     end
 
-    W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -94)
+    -- out of range: grey, and the distance it is checked at
+    W.Check(f, L("Out of range: grey"), function() return pvp:GetSideSetting(side, "RangeDesat") end,
+        function(v) pvp:SetSideSetting(side, "RangeDesat", v) end):SetPoint("TOPLEFT", 12, -86)
+    W.Label(f, L("Range:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 236, -92)
+    W.Cycle(f, 70, RANGES, function() return pvp:GetSideSetting(side, "Range") end,
+        function(v) pvp:SetSideSetting(side, "Range", v) end):SetPoint("TOPLEFT", 290, -87)
+
+    W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -118)
     for i, moduleName in ipairs(pvp.ToggleableModules) do
         local module = pvp.ButtonModules[moduleName]
         if module then
@@ -203,7 +214,7 @@ local function BuildSide(f, pvp, side)
             W.Check(f, module.localizedModuleName or moduleName,
                 function() return pvp:GetSideSetting(side, "Modules", moduleName) end,
                 function(v) pvp:SetSideSetting(side, "Modules", v, moduleName) end
-            ):SetPoint("TOPLEFT", 12 + col * 220, -110 - row * 24)
+            ):SetPoint("TOPLEFT", 12 + col * 220, -134 - row * 24)
         end
     end
 end

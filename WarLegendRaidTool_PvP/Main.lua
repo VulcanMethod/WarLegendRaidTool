@@ -300,6 +300,12 @@ function WarLegendPvP:BuildProfile()
 		local s = savedSide(side)
 		local sideConfig = profile[side]
 		if s.Enabled ~= nil then sideConfig.Enabled = s.Enabled end
+		-- WarLegend: out of range distance and grey (PlayerButton.lua ApplyRangeDesaturation)
+		if type(s.Range) == "number" then
+			sideConfig.RangeIndicator_Range_InCombat = s.Range
+			sideConfig.RangeIndicator_Range_OutOfCombat = s.Range
+		end
+		sideConfig.RangeIndicator_Desaturate = s.RangeDesat and true or false
 		-- WarLegend: right / middle click on an ally casts my dispel spells (Modules/Dispel.lua)
 		if side == "Allies" and s.ClickDispel then
 			sideConfig.RightButtonType = "Dispel"
@@ -365,6 +371,10 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return cfg.ButtonModules.healthBar and cfg.ButtonModules.healthBar.HealthTextEnabled
 	elseif key == "ClickDispel" then
 		return s.ClickDispel and true or false
+	elseif key == "RangeDesat" then
+		return s.RangeDesat and true or false
+	elseif key == "Range" then
+		return s.Range or self.db.profile[side].RangeIndicator_Range_InCombat
 	end
 end
 

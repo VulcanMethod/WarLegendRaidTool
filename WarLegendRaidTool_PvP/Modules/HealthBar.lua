@@ -149,6 +149,8 @@ function healthBar:AttachToPlayerButton(playerButton)
 		self:SetMinMaxValues(0, 1)
 		self:SetValue(1)
 		self:UpdateHealthText(false, false)
+		-- WarLegend: keep the grey of an out of range player (PlayerButton.lua)
+		if playerButton.ApplyRangeDesaturation then playerButton:ApplyRangeDesaturation() end
 	end
 	return playerButton.healthBar
 end
