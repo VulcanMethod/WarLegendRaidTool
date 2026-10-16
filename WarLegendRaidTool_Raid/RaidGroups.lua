@@ -320,7 +320,8 @@ W.AddFR({
 -- The unit's mark: 0 none, nil when the client hides it (the macro then sets / clears it anyway)
 local function MarkOf(unit)
     local v = GetRaidTargetIndex(unit)
-    if v == nil then return 0 end
+    -- GetRaidTargetIndex has SecretReturns (warcraft.wiki.gg): type() is the nil test that works on a secret
+    if type(v) == "nil" then return 0 end
     return W.Safe(v)
 end
 

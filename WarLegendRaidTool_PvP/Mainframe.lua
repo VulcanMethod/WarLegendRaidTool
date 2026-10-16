@@ -538,7 +538,7 @@ local function CreateMainFrame(playerType)
 		self.Target = nil
 
 		local TimeSinceLastOnUpdate = 0
-		local UpdatePeroid = 0.1 --update every 0.1seconds
+		local UpdatePeroid = 0.2 -- every 0.2 s (BattleGroundEnemies used 0.1: half the work with 40 players, still smooth)
 
 		if playerButton.PlayerIsEnemy then
 			playerButton:UpdateRange(false)

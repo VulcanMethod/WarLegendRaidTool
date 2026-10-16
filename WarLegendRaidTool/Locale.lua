@@ -158,7 +158,6 @@ local FR = {
     ["Group "] = "Groupe ",
     ["Groups can only be applied in a raid."] = "Les groupes ne s'appliquent qu'en raid.",
     ["Groups to sort:"] = "Groupes concernés :",
-    ["Guild"] = "Guilde",
     ["Guild members only"] = "Seulement les membres de la guilde",
     ["Guild ranks to promote:"] = "Rangs de guilde à promouvoir :",
     ["Guild: also show offline members."] = "Guilde : affiche aussi les membres déconnectés.",

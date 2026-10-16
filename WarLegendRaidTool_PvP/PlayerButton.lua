@@ -205,6 +205,8 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		local newIndex = forceIndex --used for testmode, otherwise it will just be nil and overwritten when one actually exists
 		if unit then
 			newIndex = GetRaidTargetIndex(unit)
+			-- SecretReturns (warcraft.wiki.gg): SetRaidTargetIconTexture does arithmetic on it, so no icon when secret
+			if issecret(newIndex) then newIndex = nil end
 		end
 		self.RaidTargetIconIndex = newIndex
 		self:DispatchEvent("UpdateRaidTargetIcon", self.RaidTargetIconIndex)
