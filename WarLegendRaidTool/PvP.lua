@@ -52,6 +52,8 @@ W.AddFR({
     ["not available on this client"] = "pas disponible sur ce client",
     ["no battleground message received since the last /reload"] = "aucun message de champ de bataille reçu depuis le dernier /reload",
     ["Battleground messages"] = "Messages du champ de bataille",
+    ["No battleground message recorded yet: play a battleground, then type /wl bgmsg again."] =
+        "Aucun message de champ de bataille enregistré : joue un champ de bataille, puis retape /wl bgmsg.",
     ["Out of range: grey"] = "Hors de portée : griser",
     ["Class icon"] = "Icône de classe",
     ["Range:"] = "Portée :",
@@ -94,6 +96,7 @@ end
 
 W.OnReady(function()
     db = W.DB("pvp", { enabled = true })
+    if type(db.bgMessages) ~= "table" then db.bgMessages = {} end
 end)
 W.On("PLAYER_ENTERING_WORLD", MaybeLoad)
 W.On("PLAYER_REGEN_ENABLED", function()
@@ -106,14 +109,15 @@ W.slash.pvp = function() W.Toggle("PvPFrames") end
 -- C_RestrictedActions.IsAddOnRestrictionActive, C_ChatInfo.InChatMessagingLockdown (warcraft.wiki.gg).
 -- The last battleground system message is only noted (secret or not, never read), for the flag carrier.
 local lastBGMessage
-local recentBGMessages = {} -- the last readable ones (memory only), for /wl bgmsg
+-- the last readable ones, kept in the saved file (they survive a /reload), for /wl bgmsg
+local function BGMessages() return db and db.bgMessages or {} end
 local function NoteBGMessage(event)
     return function(text)
         local secret = (issecretvalue and issecretvalue(text)) or (canaccessvalue and not canaccessvalue(text)) or false
         lastBGMessage = { event = event, secret = secret, at = time() }
         if not secret and type(text) == "string" then
-            table.insert(recentBGMessages, 1, date("%H:%M:%S") .. "  " .. event:gsub("CHAT_MSG_BG_SYSTEM_", "") .. "  " .. text)
-            while #recentBGMessages > 30 do table.remove(recentBGMessages) end
+            table.insert(BGMessages(), 1, date("%d/%m %H:%M:%S") .. "  " .. event:gsub("CHAT_MSG_BG_SYSTEM_", "") .. "  " .. text)
+            while #BGMessages() > 40 do table.remove(BGMessages()) end
         end
     end
 end
@@ -123,8 +127,9 @@ W.On("CHAT_MSG_BG_SYSTEM_NEUTRAL", NoteBGMessage("CHAT_MSG_BG_SYSTEM_NEUTRAL"))
 
 -- /wl bgmsg: the last battleground messages, to copy (to add the flag texts of a new battleground)
 W.slash.bgmsg = function()
-    W.TextPopup(L("Battleground messages"), #recentBGMessages > 0 and table.concat(recentBGMessages, "\n")
-        or L("no battleground message received since the last /reload"), { hint = "Ctrl+C" })
+    local list = BGMessages()
+    W.TextPopup(L("Battleground messages"), #list > 0 and table.concat(list, "\n")
+        or L("No battleground message recorded yet: play a battleground, then type /wl bgmsg again."), { hint = "Ctrl+C" })
 end
 
 local function Answer(value)
