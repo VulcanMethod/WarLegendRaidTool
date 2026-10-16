@@ -515,6 +515,34 @@ W.slash.rl = function()
         or L("/rl goes back to EllesmereUI's popup: reload the interface to apply."))
 end
 
+-- BigWigs-like countdown: a spoken number (Media/Sounds/Countdown/<fr|en>/<1-5>.mp3, Windows voices) and the
+-- "pop" of a big number (it starts large, settles, then fades). W.Pulse scales the frame it is given: give it an
+-- inner frame anchored at the CENTER of its holder with no offset, so it grows in place.
+local VOICE_PATH = "Interface\\AddOns\\WarLegendRaidTool\\Media\\Sounds\\Countdown\\"
+function W.CountdownVoice(n)
+    if type(n) ~= "number" or n < 1 or n > 5 or not PlaySoundFile then return end
+    PlaySoundFile(VOICE_PATH .. (W.LANG == "fr" and "fr" or "en") .. "\\" .. n .. ".mp3", "Master")
+end
+
+function W.Pulse(frame, duration)
+    duration = duration or 0.95
+    local t = 0
+    frame:SetAlpha(1)
+    frame:SetScale(1.8)
+    frame:Show()
+    frame:SetScript("OnUpdate", function(self, e)
+        t = t + e
+        self:SetScale(t < 0.15 and (1.8 - 0.8 * t / 0.15) or 1)
+        if t > duration * 0.6 then self:SetAlpha(math.max(0, 1 - (t - duration * 0.6) / (duration * 0.4))) end
+        if t >= duration then
+            self:SetScript("OnUpdate", nil)
+            self:Hide()
+            self:SetAlpha(1)
+            self:SetScale(1)
+        end
+    end)
+end
+
 -- Simple column table built on W.ScrollList: cols = { {title, width, justify} }
 function W.Table(parent, cols, h, rowH)
     rowH = rowH or 18

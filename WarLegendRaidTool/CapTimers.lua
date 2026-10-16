@@ -25,6 +25,10 @@ W.AddFR({
     ["A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."] =
         "Une base attaquée (icône contestée sur la carte) a une barre jusqu'à sa prise : Alterac 5 min, Arathi 1 min, les autres champs de bataille le temps choisi ici. Maj-clic sur une barre : /dire, Ctrl-clic : canal du champ de bataille. Si un champ de bataille n'affiche rien, ouvre « Points de la carte maintenant » pendant une attaque et envoie le texte.",
     ["Not in a battleground."] = "Pas en champ de bataille.",
+    ["BigWigs style: the bar moves to the middle for its last 5 seconds"] =
+        "Style BigWigs : la barre passe au centre pour ses 5 dernières secondes",
+    ["Big 5-4-3-2-1 countdown"] = "Gros décompte 5-4-3-2-1",
+    ["Voice countdown"] = "Décompte vocal",
     ["Time to win (final score estimate)"] = "Temps avant la victoire (score final estimé)",
     ["Final: %d - %d"] = "Final : %d - %d",
 })
@@ -59,7 +63,8 @@ local CAP_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"
 local CAP_W, CAP_H, CAP_FONT_SIZE = 200, 20, 10
 
 W.OnReady(function()
-    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60, queue = true, flag = true, win = true })
+    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60, queue = true, flag = true, win = true,
+        emphasize = true, bigCount = true, voice = true })
     if type(db.point) ~= "table" then db.point = { "TOP", "TOP", 0, -150 } end
 end)
 
@@ -132,16 +137,52 @@ local function NewBar()
     return f
 end
 
+-- BigWigs' "emphasize": in its last seconds a bar moves to the middle of the screen, larger, and a big
+-- 5-4-3-2-1 (with the voice) counts the one that ends first
+local EMPH_AT, EMPH_SCALE = 5, 1.5
+local emphAnchor, bigCount
+local function EmphAnchor()
+    if emphAnchor then return emphAnchor end
+    emphAnchor = CreateFrame("Frame", "WLRTCapTimersEmphasize", UIParent)
+    emphAnchor:SetSize(CAP_W, CAP_H)
+    emphAnchor:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+    emphAnchor:SetFrameStrata("HIGH")
+    -- the big number above the emphasized bars (an inner frame for W.Pulse, it grows in place)
+    bigCount = CreateFrame("Frame", nil, emphAnchor)
+    bigCount:SetSize(1, 1)
+    bigCount:SetPoint("BOTTOM", emphAnchor, "TOP", 0, 40)
+    bigCount.text = bigCount:CreateFontString(nil, "OVERLAY")
+    W.SetFont(bigCount.text, W.FONT, 64, "OUTLINE")
+    bigCount.text:SetPoint("CENTER")
+    bigCount:Hide()
+    return emphAnchor
+end
+
 local function Layout()
-    local list = {}
-    for _, a in pairs(active) do list[#list + 1] = a end
-    table.sort(list, function(x, y) return x.ends < y.ends end)
-    for i, a in ipairs(list) do
+    local normal, emph = {}, {}
+    for _, a in pairs(active) do
+        if a.emph then emph[#emph + 1] = a else normal[#normal + 1] = a end
+    end
+    local function byEnd(x, y) return x.ends < y.ends end
+    table.sort(normal, byEnd)
+    table.sort(emph, byEnd)
+    for i, a in ipairs(normal) do
+        a.bar:SetParent(anchor)
+        a.bar:SetScale(1)
         a.bar:ClearAllPoints()
         a.bar:SetPoint("TOP", anchor, "TOP", 0, -(i - 1) * CAP_H)
     end
-    anchor:SetHeight(math.max(CAP_H, #list * CAP_H))
-    anchor:SetShown(#list > 0)
+    if #emph > 0 then
+        local holder = EmphAnchor()
+        for i, a in ipairs(emph) do
+            a.bar:SetParent(holder)
+            a.bar:SetScale(EMPH_SCALE)
+            a.bar:ClearAllPoints()
+            a.bar:SetPoint("TOP", holder, "TOP", 0, -(i - 1) * CAP_H)
+        end
+    end
+    anchor:SetHeight(math.max(CAP_H, #normal * CAP_H))
+    anchor:SetShown(#normal > 0)
 end
 
 local function StopBar(key)
@@ -149,9 +190,36 @@ local function StopBar(key)
     if not a then return end
     a.bar:Hide()
     a.bar.data = nil
+    a.bar:SetParent(anchor)
+    a.bar:SetScale(1)
     pool[#pool + 1] = a.bar
     active[key] = nil
     Layout()
+end
+
+-- every 0.1 s: bars entering their last seconds move to the middle; the soonest one is counted aloud
+local function Emphasize(now)
+    if not db.emphasize then return end
+    local moved, first = false, nil
+    for _, a in pairs(active) do
+        local left = a.ends - now
+        if not a.emph and left <= EMPH_AT and a.total > EMPH_AT + 1 and a.color ~= "queue" then
+            a.emph, moved = true, true
+        end
+        if a.emph and (not first or a.ends < first.ends) then first = a end
+    end
+    if moved then Layout() end
+    if not first or not db.bigCount then return end
+    local n = math.ceil(first.ends - now)
+    if n >= 1 and n <= EMPH_AT and n ~= first.lastN then
+        first.lastN = n
+        EmphAnchor()
+        local c = COLORS[first.color] or COLORS.other
+        bigCount.text:SetText(n)
+        bigCount.text:SetTextColor(c[1], c[2], c[3])
+        W.Pulse(bigCount, 0.95)
+        if db.voice then W.CountdownVoice(n) end
+    end
 end
 
 local function StopMatching(prefix)
@@ -175,6 +243,7 @@ local function OnUpdate(_, e)
             a.bar.time:SetText(TimeText(left))
         end
     end
+    Emphasize(now)
 end
 
 local function CreateAnchor()
@@ -212,7 +281,7 @@ local function StartBar(key, label, secs, color, icon, team)
         bar.icon:SetTexture(icon or 134400)
         bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     end
-    local a = { bar = bar, ends = GetTime() + secs, total = secs, label = label, team = team }
+    local a = { bar = bar, ends = GetTime() + secs, total = secs, label = label, team = team, color = color }
     bar.data = a
     bar:Show()
     active[key] = a
@@ -573,6 +642,11 @@ W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
         function(v) db.enabled = v; Zone() end):SetPoint("TOPLEFT", 12, -40)
     W.Check(p, L("Battle start and queue bars"), function() return db.queue end, function(v) db.queue = v end):SetPoint("TOPLEFT", 12, -64)
     W.Check(p, L("Flag respawn after a capture"), function() return db.flag end, function(v) db.flag = v end):SetPoint("TOPLEFT", 12, -88)
+    W.Check(p, L("BigWigs style: the bar moves to the middle for its last 5 seconds"), function() return db.emphasize end,
+        function(v) db.emphasize = v end):SetPoint("TOPLEFT", 330, -64)
+    W.Check(p, L("Big 5-4-3-2-1 countdown"), function() return db.bigCount end, function(v) db.bigCount = v end)
+        :SetPoint("TOPLEFT", 350, -88)
+    W.Check(p, L("Voice countdown"), function() return db.voice end, function(v) db.voice = v end):SetPoint("TOPLEFT", 350, -112)
     W.Check(p, L("Time to win (final score estimate)"), function() return db.win end, function(v) db.win = v; Zone() end)
         :SetPoint("TOPLEFT", 330, -40)
     W.Check(p, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -112)
@@ -585,6 +659,7 @@ W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
         StartBar("test:h", "Test Horde", 30, "Horde", { poi = 13 }, "Horde")
         StartBar("test:g", L("Battle begins"), 45, "other", 136106)
         StartBar("test:f", L("Flag respawns"), FLAG_RESPAWN, "other", 134420)
+        StartBar("test:e", "Test", 8, "Horde", { poi = 13 }, "Horde") -- shows the middle + countdown at once
     end):SetPoint("TOPLEFT", 16, -178)
     W.Button(p, L("Reset position"), 160, 22, function()
         db.point = { "TOP", "TOP", 0, -150 }

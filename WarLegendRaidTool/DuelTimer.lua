@@ -12,6 +12,7 @@ W.AddFR({
     ["Test"] = "Test",
     ["Reset position"] = "Réinitialiser la position",
     ["Duel"] = "Duel",
+    ["Voice countdown (3, 2, 1...)"] = "Décompte vocal (3, 2, 1...)",
     ["Fight!"] = "Combat !",
     ["Out of the duel area"] = "Hors de la zone de duel",
     ["3, 2, 1 before a duel starts, then \"Fight!\"; and the 10 seconds left to come back when you leave the duel area."] =
@@ -23,7 +24,7 @@ local db
 local OUT_OF_BOUNDS = 10 -- seconds the game gives to come back
 
 W.OnReady(function()
-    db = W.DB("duelTimer", { enabled = true, sound = true, locked = false, size = 72 })
+    db = W.DB("duelTimer", { enabled = true, sound = true, voice = true, locked = false, size = 72 })
     if type(db.point) ~= "table" then db.point = { "CENTER", "CENTER", 0, 160 } end
 end)
 
@@ -63,11 +64,15 @@ local function Create()
         local point, _, rel, x, y = self:GetPoint()
         db.point = { point, rel, x, y }
     end)
-    frame.big = frame:CreateFontString(nil, "OVERLAY")
-    frame.big:SetPoint("CENTER", 0, 10)
+    -- the number sits in an inner frame anchored at the center: W.Pulse makes it pop in place, as BigWigs
+    frame.pulse = CreateFrame("Frame", nil, frame)
+    frame.pulse:SetSize(1, 1)
+    frame.pulse:SetPoint("CENTER", 0, 10)
+    frame.big = frame.pulse:CreateFontString(nil, "OVERLAY")
+    frame.big:SetPoint("CENTER")
     frame.sub = frame:CreateFontString(nil, "OVERLAY")
     W.SetFont(frame.sub, W.FONT, 16, "OUTLINE")
-    frame.sub:SetPoint("TOP", frame.big, "BOTTOM", 0, -4)
+    frame.sub:SetPoint("TOP", frame.pulse, "CENTER", 0, -40)
     frame:Hide()
     Place()
 end
@@ -82,7 +87,12 @@ local function Tick()
         if left ~= lastShown then
             lastShown = left
             frame.big:SetText(left)
-            if db.sound and SOUNDKIT then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
+            W.Pulse(frame.pulse, 0.95)
+            if db.voice and left <= 5 then
+                W.CountdownVoice(left)
+            elseif db.sound and SOUNDKIT then
+                PlaySound(SOUNDKIT.RAID_WARNING, "Master")
+            end
         end
     elseif hideAt and now >= hideAt then
         hideAt = nil
@@ -101,12 +111,17 @@ local function Show(text, r, g, b, sub, duration)
     hideAt = duration and (GetTime() + duration) or nil
     frame:SetScript("OnUpdate", Tick)
     frame:Show()
+    W.Pulse(frame.pulse, duration or 0.95) -- the BigWigs "pop": large, settles, fades
 end
 
 local function Countdown(n)
     boundsEnd = nil
-    Show(tostring(n), 1, 0.82, 0, L("Duel"), 1.2)
-    if db.sound and SOUNDKIT then PlaySound(SOUNDKIT.RAID_WARNING, "Master") end
+    Show(tostring(n), 1, 0.82, 0, L("Duel"), 1)
+    if db.voice and n <= 5 then
+        W.CountdownVoice(n)
+    elseif db.sound and SOUNDKIT then
+        PlaySound(SOUNDKIT.RAID_WARNING, "Master")
+    end
     if n == 1 then
         W.After(1, function() Show(L("Fight!"), 0.2, 1, 0.2, nil, 1.2) end)
     end
@@ -135,6 +150,8 @@ W.RegisterModule("DuelTimer", L("Duel timer"), function(p)
         function(v) db.enabled = v; if not v and frame then frame:Hide() end end):SetPoint("TOPLEFT", 12, -40)
     W.Check(p, L("Play a sound on each second"), function() return db.sound end, function(v) db.sound = v end)
         :SetPoint("TOPLEFT", 32, -66)
+    W.Check(p, L("Voice countdown (3, 2, 1...)"), function() return db.voice end, function(v) db.voice = v end)
+        :SetPoint("TOPLEFT", 300, -66)
     W.Check(p, L("Lock the countdown"), function() return db.locked end, function(v) db.locked = v end)
         :SetPoint("TOPLEFT", 32, -90)
     W.Label(p, L("Size:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 36, -126)
