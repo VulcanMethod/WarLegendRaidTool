@@ -1385,7 +1385,7 @@ function W.EnsurePanel(m)
     -- with every box unchecked and every text field empty.
     m.panel:Hide()
     W.building = m
-    local ok, err = pcall(m.build, m.panel)
+    local ok, err = W.Measure("build the tab " .. tostring(m.key), m.build, m.panel)
     W.building = nil
     if not ok then geterrorhandler()(err) end
     return m.panel
@@ -1755,6 +1755,25 @@ end
 local NOT_BUILT = { PvPFrames = true } -- its panel loads the PvP addon: found by its name only
 local allIndexed = false
 
+-- The tabs not opened yet are built one at a time in the background (one every 0.1 s, never in combat), so
+-- the search box knows their options without one long freeze at the first search.
+local slowIndexing = false
+function W.IndexTabsSlowly()
+    if slowIndexing or allIndexed or not main then return end
+    slowIndexing = true
+    local i = 0
+    local function step()
+        if allIndexed then slowIndexing = false; return end
+        if InCombatLockdown() then W.After(1, step); return end
+        i = i + 1
+        local m = W.modules[i]
+        if not m then allIndexed = true; slowIndexing = false; return end
+        if not m.panel and not NOT_BUILT[m.key] then W.EnsurePanel(m) end
+        W.After(0.1, step)
+    end
+    W.After(1, step)
+end
+
 function W.SearchOptions(query, max)
     local q = Norm(query):gsub("^%s+", ""):gsub("%s+$", "")
     if #q < 2 or not main then return {} end
@@ -1813,7 +1832,12 @@ end
 function W.Toggle(key)
     if not W.Allowed() then W.Denied(); return end
     W.LoadRaid() -- the menu is built once, with the raid tools in it
-    W.BuildMain()
+    if not main then
+        local ok, err = W.Measure("build the /wl window", W.BuildMain)
+        if not ok then geterrorhandler()(err) end
+        if not main then return end
+    end
+    W.IndexTabsSlowly()
     if key then
         W.DB("ui").lastModule = key
         if main:IsShown() then W.Select(key) else main:Show() end
