@@ -171,7 +171,7 @@ local function ReadUnit(unit, missingOnly)
 			if icon and (not dtype or dispels[dtype]) then -- type unreadable: the filter said I can remove it
 				local color = DISPEL_COLOR[dtype or "Unknown"] or DISPEL_COLOR.Unknown
 				border = border or color
-				if #debuffs < MAX_DEBUFFS then debuffs[#debuffs + 1] = { icon = icon, color = color } end
+				if #debuffs < MAX_DEBUFFS then debuffs[#debuffs + 1] = { icon = icon, color = color, dtype = dtype } end
 			end
 		end
 	end
@@ -269,6 +269,29 @@ function dispel:AttachToPlayerButton(playerButton)
 		return b
 	end
 
+	-- the dispel type symbols inside the health bar, as Blizzard's party frames (when the client's aura
+	-- container is missing, and in test mode; the container draws its own, NativeAuras.lua)
+	local typeIcons = {}
+	local function TypeIcons(debuffs)
+		local bar = playerButton.healthBar
+		if not bar then return end
+		local size = math.max(10, math.floor((bar:GetHeight() or 20) * 0.7))
+		local n = 0
+		for _, d in ipairs(debuffs) do
+			if d.dtype and n < MAX_DEBUFFS then
+				n = n + 1
+				local t = typeIcons[n]
+				if not t then t = bar:CreateTexture(nil, "OVERLAY", nil, 7); typeIcons[n] = t end
+				t:SetSize(size, size)
+				t:ClearAllPoints()
+				t:SetPoint("RIGHT", bar, "RIGHT", -2 - (n - 1) * (size + 1), 0)
+				t:SetAtlas("RaidFrame-Icon-Debuff" .. d.dtype)
+				t:Show()
+			end
+		end
+		for i = n + 1, #typeIcons do typeIcons[i]:Hide() end
+	end
+
 	-- debuffs on the right of the frame; buffs on the left when f.left exists (aura containers), else after the debuffs
 	function f:Show_(debuffs, buffs, border)
 		local size = math.max(10, (playerButton:GetHeight() or 20) - 4)
@@ -299,6 +322,7 @@ function dispel:AttachToPlayerButton(playerButton)
 		for i = n + 1, #f.icons do f.icons[i]:Hide() end
 		self:SetWidth(f.native and 8 * 20 or math.max(1, nr * (size + 2)))
 		if f.left then f.left:SetWidth(math.max(1, nl * (size + 2))) end
+		TypeIcons(debuffs)
 		local t = border and Tint() or tint
 		if t then
 			if border then
@@ -313,6 +337,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:Clear()
 		for i = 1, #f.icons do f.icons[i]:Hide() end
 		if tint then tint:Hide() end
+		for i = 1, #typeIcons do typeIcons[i]:Hide() end
 		if f.native then NA.SetUnit(f.native, nil) end
 		if f.leftNative then NA.SetUnit(f.leftNative, nil) end
 	end
@@ -376,8 +401,9 @@ function dispel:AttachToPlayerButton(playerButton)
 		for _, fam in ipairs(buffs) do shown[#shown + 1] = { icon = fam.icon, grey = math.random(1, 2) == 1 } end
 		if math.random(1, 3) == 1 then
 			local types = { "Magic", "Curse", "Disease", "Poison" }
-			local c = DISPEL_COLOR[types[math.random(1, 4)]]
-			self:Show_({ { icon = 136118, color = c } }, shown, c)
+			local dtype = types[math.random(1, 4)]
+			local c = DISPEL_COLOR[dtype]
+			self:Show_({ { icon = 136118, color = c, dtype = dtype } }, shown, c)
 		else
 			self:Show_({}, shown, nil)
 		end

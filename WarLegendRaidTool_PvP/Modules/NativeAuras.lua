@@ -56,6 +56,35 @@ end
 
 -- the health bar of the unit frame in the dispel color: a texture over the bar's fill (it follows the health,
 -- same bar texture), under the health text. Hidden with the aura button.
+-- the dispel type symbol of Blizzard's party / raid frames, inside the unit frame's health bar on its right
+-- (one per dispellable debuff, the n-th aura button of the group draws the n-th symbol). The client picks
+-- the image by the aura's dispel type (CustomAsset + customDispelAssetMap, as BetterBlizzFrames).
+local TYPE_ICONS = {
+	Magic = { asset = "RaidFrame-Icon-DebuffMagic" },
+	Curse = { asset = "RaidFrame-Icon-DebuffCurse" },
+	Disease = { asset = "RaidFrame-Icon-DebuffDisease" },
+	Poison = { asset = "RaidFrame-Icon-DebuffPoison" },
+}
+local function TypeIcon(button, unitFrame, slot)
+	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
+	local bar = unitFrame.healthBar
+	if not (styles and styles.CustomAsset and button.AddDispelTypeTexture and bar) then return end
+	local size = math.max(10, math.floor((bar:GetHeight() or 20) * 0.7))
+	local holder = CreateFrame("Frame", nil, button) -- child of the aura button: hidden with it
+	holder:SetSize(size, size)
+	holder:SetPoint("RIGHT", bar, "RIGHT", -2 - (slot - 1) * (size + 1), 0)
+	holder:SetFrameLevel(bar:GetFrameLevel() + 5)
+	local tex = holder:CreateTexture(nil, "OVERLAY")
+	tex:SetAllPoints(holder)
+	pcall(button.AddDispelTypeTexture, button, tex, {
+		style = styles.CustomAsset,
+		showWhenHarmful = true,
+		showWhenHelpful = false,
+		showWithoutDispelType = false,
+		customDispelAssetMap = TYPE_ICONS,
+	})
+end
+
 local function HealthBarColor(button, unitFrame)
 	local bar = unitFrame.healthBar
 	local fill = bar and bar.GetStatusBarTexture and bar:GetStatusBarTexture()
@@ -91,7 +120,11 @@ local function InitButton(button, group, glowParent)
 	local count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 	count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, 0)
 	Try(button, "SetApplicationCount", count)
-	if group.frameGlow and glowParent then HealthBarColor(button, glowParent) end
+	if group.frameGlow and glowParent then
+		HealthBarColor(button, glowParent)
+		group.made = (group.made or 0) + 1 -- the client makes the buttons of a group in their display order
+		TypeIcon(button, glowParent, group.made)
+	end
 	if Try(button, "SetMouseMotionEnabled", false) == nil then button:EnableMouse(false) end
 end
 
