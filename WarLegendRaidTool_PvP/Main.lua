@@ -301,6 +301,7 @@ function WarLegendPvP:BuildProfile()
 		local sideConfig = profile[side]
 		if s.Enabled ~= nil then sideConfig.Enabled = s.Enabled end
 		if type(s.Style) == "string" then sideConfig.Style = s.Style end
+		if type(s.TextOutline) == "string" then sideConfig.TextOutline = s.TextOutline end
 		-- WarLegend: out of range distance and grey (PlayerButton.lua ApplyRangeDesaturation)
 		if type(s.Range) == "number" then
 			sideConfig.RangeIndicator_Range_InCombat = s.Range
@@ -375,6 +376,8 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return s.ClickDispel and true or false
 	elseif key == "Style" then
 		return s.Style or self.db.profile.Style or "auto"
+	elseif key == "TextOutline" then
+		return s.TextOutline or "shadow"
 	elseif key == "RangeDesat" then
 		return s.RangeDesat and true or false
 	elseif key == "Range" then
@@ -934,12 +937,21 @@ local function ApplyFontStringSettings(fs, settings, isCooldown)
 	local configTable = Mixin({}, globals, settings)
 
 	-- font, outline and shadow follow the style (EllesmereUI font or Blizzard's), the sizes stay per module
-	local fontPath, styleOutline, styleShadow = WarLegendPvP:GetFont(sideOf(fs:GetParent()))
+	local side = sideOf(fs:GetParent())
+	local fontPath, styleOutline, styleShadow = WarLegendPvP:GetFont(side)
 	local outline = configTable.FontOutline
 	if outline == nil or outline == "" then outline = styleOutline end
-	-- WarLegend: always a black outline. White text with only a shadow cannot be read on a white (priest) or
-	-- light (rogue, paladin) health bar
-	if outline == nil or outline == "" then outline = "OUTLINE" end
+	-- WarLegend: text edge per side (TextOutline): "shadow" (default, a full black drop shadow: smooth, readable
+	-- on the white priest bar), "outline" / "thick" (the game's outline, sharper but pixelated at small sizes)
+	local p = WarLegendPvP.db.profile
+	local mode = (side and p[side] and p[side].TextOutline) or "shadow"
+	if mode == "outline" then
+		outline = "OUTLINE"
+	elseif mode == "thick" then
+		outline = "THICKOUTLINE"
+	else
+		styleShadow = true
+	end
 	-- through WarLegend's font family: Cyrillic / Asian names keep their letters (no squares)
 	if WLRT and WLRT.SetFont then
 		WLRT.SetFont(fs, fontPath, configTable.FontSize, outline)

@@ -18,6 +18,10 @@ W.AddFR({
     ["Style:"] = "Style :",
     ["Style: in the Enemies / Allies tabs below."] = "Style : dans les onglets Ennemis / Alliés ci-dessous.",
     ["Flat"] = "Plat",
+    ["Text:"] = "Texte :",
+    ["Shadow"] = "Ombre",
+    ["Outline"] = "Contour",
+    ["Thick outline"] = "Contour épais",
     ["Smooth"] = "Lisse",
     ["Classic"] = "Classique",
     ["Auto"] = "Auto",
@@ -208,6 +212,11 @@ local function BuildSide(f, pvp, side)
     for _, s in ipairs(STYLES) do styles[#styles + 1] = { s[1], L(s[2]) } end
     W.Cycle(f, 120, styles, function() return pvp:GetSideSetting(side, "Style") end,
         function(v) pvp:SetSideSetting(side, "Style", v) end):SetPoint("TOPLEFT", 290, -4)
+    -- edge of the texts: shadow (smooth) or the game's outline (sharper, a bit pixelated)
+    W.Label(f, L("Text:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 424, -9)
+    W.Cycle(f, 120, { { "shadow", L("Shadow") }, { "outline", L("Outline") }, { "thick", L("Thick outline") } },
+        function() return pvp:GetSideSetting(side, "TextOutline") end,
+        function(v) pvp:SetSideSetting(side, "TextOutline", v) end):SetPoint("TOPLEFT", 464, -4)
 
     local rows = { { L("Width:"), "Width", WIDTHS }, { L("Height:"), "Height", HEIGHTS }, { L("Scale:"), "Scale", SCALES } }
     for i, row in ipairs(rows) do
