@@ -26,4 +26,5 @@ MarksBar.lua
 Focus.lua
 TalentReminder.lua
 QualityOfLife.lua
+PvP.lua
 VersionCheck.lua

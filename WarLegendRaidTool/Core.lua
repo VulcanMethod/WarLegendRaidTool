@@ -1229,7 +1229,7 @@ local CATEGORIES = {
         { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
         { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "AutoLog", "Focus", "Summon" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "Battleground", items = { "GYTimer" } },
+        { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer" } },
     } },
     { key = "me", title = "Guild", sections = {
         { key = "me", items = { "Guild", "Alts", "SimExport", "QualityOfLife", "VersionCheck" } },

@@ -1,0 +1,38 @@
+## Interface: 16001
+## Title: |cffffffffWar|r|cffce1918Legend|r RaidTool - PvP
+## Notes: Battleground enemy and ally frames of WarLegend RaidTool (based on BattleGroundEnemies by Bullsei, cleaned up for WoW Forever). Loaded on demand by WarLegendRaidTool.
+## Notes-frFR: Cadres des ennemis et des alliés en champ de bataille de WarLegend RaidTool (basé sur BattleGroundEnemies de Bullsei, nettoyé pour WoW Forever). Chargé à la demande par WarLegendRaidTool.
+## Author: WarLegend, Bullsei (BattleGroundEnemies)
+## Version: 1.22.1
+## X-BattleGroundEnemies-Version: 11.2.0.6
+## Dependencies: WarLegendRaidTool
+## LoadOnDemand: 1
+## SavedVariables: WarLegendRaidTool_PvPDB
+## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
+
+embeds.xml
+
+Locales.lua
+
+Helpers.lua
+Data.lua
+Defaults.lua
+Main.lua
+Mainframe.lua
+PlayerButton.lua
+FlagCarrier.lua
+
+Modules\CastBar.lua
+Modules\CombatIndicator.lua
+Modules\HealthBar.lua
+Modules\Level.lua
+Modules\Name.lua
+Modules\ObjectiveAndRespawn.lua
+Modules\Power.lua
+Modules\RaidTargetIcon.lua
+Modules\Role.lua
+Modules\SpecClassProirity.lua
+Modules\TargetIndicatorNumeric.lua
+Modules\TargetIndicatorSymbolic.lua
+
+Startup.lua

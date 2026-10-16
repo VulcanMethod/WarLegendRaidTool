@@ -1,0 +1,6 @@
+<Bindings>
+    <Binding name="CLICK WLPvPAllies:Button4" header="WarLegendPvP" category="WarLegendPvP"/>
+    <Binding name="CLICK WLPvPAllies:Button5" category="WarLegendPvP"/>
+    <Binding name="CLICK WLPvPEnemies:Button4" category="WarLegendPvP"/>
+    <Binding name="CLICK WLPvPEnemies:Button5" category="WarLegendPvP"/>
+</Bindings>

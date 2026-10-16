@@ -4,6 +4,7 @@
 ## Notes-frFR: Modules de raid de WarLegend RaidTool (groupes, loot council, buffs, ready check, checklist, inspect, suivi d'auras, CD de raid, préparation, qui a pull). Chargés à la demande par WarLegendRaidTool.
 ## Author: WarLegend
 ## Version: 1.23.0
+## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 ## Dependencies: WarLegendRaidTool
 ## LoadOnDemand: 1
 
