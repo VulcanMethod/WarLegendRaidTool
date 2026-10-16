@@ -56,6 +56,11 @@ W.AddFR({
         "Aucun message de champ de bataille enregistré : joue un champ de bataille, puis retape /wl bgmsg.",
     ["Out of range: grey"] = "Hors de portée : griser",
     ["Class icon"] = "Icône de classe",
+    ["My spells"] = "Mes sorts",
+    ["My spells: the range of my main spell, as the action buttons."] =
+        "Mes sorts : la portée de mon sort principal, comme les boutons d'action.",
+    ["Blizzard: the check of Blizzard's raid frames (allies; my spells for the enemies)."] =
+        "Blizzard : la vérification des cadres de raid de Blizzard (alliés ; mes sorts pour les ennemis).",
     ["Range:"] = "Portée :",
     ["Right-click: dispel, middle-click: 2nd dispel (my class)"] = "Clic droit : dissiper, clic milieu : 2e dissipation (ma classe)",
     ["ally auras: %d readable, %d secret"] = "auras des alliés : %d lisibles, %d secrètes",
@@ -188,6 +193,9 @@ for _, v in ipairs({ 18, 22, 26, 28, 32, 38, 47 }) do HEIGHTS[#HEIGHTS + 1] = { 
 for _, v in ipairs({ 0.8, 0.9, 1, 1.1, 1.2, 1.3 }) do SCALES[#SCALES + 1] = { v, tostring(v) } end
 local RANGES = {}
 for _, v in ipairs({ 10, 20, 30, 40 }) do RANGES[#RANGES + 1] = { v, v .. " m" } end
+-- the game's own checks (WarLegendRaidTool_PvP GameRangeCheck); labels translated when the tab is built
+RANGES[#RANGES + 1] = { "spell", "My spells" }
+RANGES[#RANGES + 1] = { "blizzard", "Blizzard" }
 
 -- the frames of one side (Enemies / Allies)
 local function BuildSide(f, pvp, side)
@@ -220,11 +228,14 @@ local function BuildSide(f, pvp, side)
     W.Check(f, L("Out of range: grey"), function() return pvp:GetSideSetting(side, "RangeDesat") end,
         function(v) pvp:SetSideSetting(side, "RangeDesat", v) end):SetPoint("TOPLEFT", 12, -86)
     W.Label(f, L("Range:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 236, -92)
-    W.Cycle(f, 70, RANGES, function() return pvp:GetSideSetting(side, "Range") end,
-        function(v) pvp:SetSideSetting(side, "Range", v) end):SetPoint("TOPLEFT", 290, -87)
+    local ranges = {}
+    for _, r in ipairs(RANGES) do ranges[#ranges + 1] = { r[1], type(r[1]) == "string" and L(r[2]) or r[2] } end
+    W.Cycle(f, 84, ranges, function() return pvp:GetSideSetting(side, "Range") end,
+        function(v) pvp:SetSideSetting(side, "Range", v) end, { L("My spells: the range of my main spell, as the action buttons."),
+            L("Blizzard: the check of Blizzard's raid frames (allies; my spells for the enemies).") }):SetPoint("TOPLEFT", 290, -87)
     -- the class / spec icon (on the right of the ally frames: the debuffs then stick to the bar)
     W.Check(f, L("Class icon"), function() return pvp:GetSideSetting(side, "Modules", "SpecClassPriorityOne") end,
-        function(v) pvp:SetSideSetting(side, "Modules", v, "SpecClassPriorityOne") end):SetPoint("TOPLEFT", 380, -86)
+        function(v) pvp:SetSideSetting(side, "Modules", v, "SpecClassPriorityOne") end):SetPoint("TOPLEFT", 392, -86)
 
     W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -118)
     for i, moduleName in ipairs(pvp.ToggleableModules) do

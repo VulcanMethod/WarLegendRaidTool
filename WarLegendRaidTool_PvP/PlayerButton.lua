@@ -756,6 +756,13 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		if not unitID then return end
 		if not self.config then return end
 		if not self.config.RangeIndicator_Enabled then return end
+		-- WarLegend: the game's own range checks when chosen ("spell": the range of my main spell, as the action
+		-- buttons; "blizzard": UnitInRange, as Blizzard's raid frames); LibRangeCheck when they give no answer
+		local mode = self.config.RangeIndicator_Mode
+		if mode and WarLegendPvP.GameRangeCheck then
+			local inRange = WarLegendPvP.GameRangeCheck(mode, unitID, self.PlayerIsEnemy)
+			if inRange ~= nil then return self:UpdateRange(inRange) end
+		end
 		local inCombatLockdown = InCombatLockdown()
 		local checker, range = LRC[self.PlayerIsEnemy and "GetHarmMaxChecker"  or "GetFriendMaxChecker"](LRC, inCombatLockdown and self.config.RangeIndicator_Range_InCombat or self.config.RangeIndicator_Range_OutOfCombat, inCombatLockdown)
 		if not checker then return self:UpdateRange(true) end

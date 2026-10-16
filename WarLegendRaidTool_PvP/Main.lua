@@ -306,6 +306,7 @@ function WarLegendPvP:BuildProfile()
 			sideConfig.RangeIndicator_Range_InCombat = s.Range
 			sideConfig.RangeIndicator_Range_OutOfCombat = s.Range
 		end
+		sideConfig.RangeIndicator_Mode = type(s.Range) == "string" and s.Range or nil
 		sideConfig.RangeIndicator_Desaturate = s.RangeDesat and true or false
 		-- WarLegend: right / middle click on an ally casts my dispel spells (Modules/Dispel.lua)
 		if side == "Allies" and s.ClickDispel then
@@ -460,6 +461,66 @@ end
 
 function WarLegendPvP:HasEllesmereUI()
 	return euiSkin ~= nil
+end
+
+-- WarLegend: the game's own range checks (PlayerButton:UpdateRangeViaLibRangeCheck). nil = no answer (spell not
+-- known, value kept secret, unit not in my group...), LibRangeCheck is then used.
+-- My main spell per class: a helpful one for the allies, a harmful one for the enemies (first one I know).
+local RANGE_SPELLS = {
+	help = {
+		PRIEST = { 2050, 2061 }, PALADIN = { 635, 19750 }, DRUID = { 5185, 774 }, SHAMAN = { 331, 8004 },
+		MAGE = { 1459 }, WARLOCK = { 5697 },
+	},
+	harm = {
+		PRIEST = { 585, 589 }, PALADIN = { 20271, 879 }, DRUID = { 5176, 8921 }, SHAMAN = { 403, 8042 },
+		MAGE = { 133, 116 }, WARLOCK = { 686, 172 }, HUNTER = { 75, 1978 }, ROGUE = { 1752, 2764 },
+		WARRIOR = { 78, 100 },
+	},
+}
+local rangeSpellCache = {}
+local function rangeSpell(harm)
+	local key = harm and "harm" or "help"
+	if rangeSpellCache[key] ~= nil then return rangeSpellCache[key] or nil end
+	local _, class = UnitClass("player")
+	rangeSpellCache[key] = false
+	for _, id in ipairs(RANGE_SPELLS[key][class] or {}) do
+		local known = (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id))
+		if known then rangeSpellCache[key] = id; break end
+	end
+	return rangeSpellCache[key] or nil
+end
+-- spells learned while playing: looked for again
+local rangeSpellReset = CreateFrame("Frame")
+rangeSpellReset:RegisterEvent("SPELLS_CHANGED")
+rangeSpellReset:SetScript("OnEvent", function() wipe(rangeSpellCache) end)
+
+local function readable(v)
+	if v == nil or issecret(v) then return nil end
+	return v
+end
+
+function WarLegendPvP.GameRangeCheck(mode, unit, isEnemy)
+	if mode == "blizzard" and not isEnemy and UnitInRange then
+		local ok, inRange, checked = pcall(UnitInRange, unit)
+		inRange, checked = readable(inRange), readable(checked)
+		if ok and checked and inRange ~= nil then return inRange and true or false end
+		return nil
+	end
+	if mode == "spell" or mode == "blizzard" then
+		local id = rangeSpell(isEnemy)
+		if not id then return nil end
+		local ok, r
+		if C_Spell and C_Spell.IsSpellInRange then
+			ok, r = pcall(C_Spell.IsSpellInRange, id, unit)
+		elseif IsSpellInRange and GetSpellInfo then
+			ok, r = pcall(IsSpellInRange, GetSpellInfo(id), unit)
+		end
+		if not ok then return nil end
+		r = readable(r)
+		if type(r) == "number" then return r == 1 end -- old API: 1 in range, 0 out, nil no check
+		if type(r) == "boolean" then return r end
+	end
+	return nil
 end
 
 -- WarLegend: one style per side (Allies / Enemies), the general one when a side has none. Textures of the game
