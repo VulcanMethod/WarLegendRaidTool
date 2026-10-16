@@ -262,6 +262,45 @@ end
 
 local poiEv = W.On("AREA_POIS_UPDATED", POIsUpdated, nil, true)
 
+-- The battleground messages as a second source (a battleground whose map icons are not the known ones):
+-- "X has assaulted the Farm!" starts the bar of that base in the color of the team the message comes from,
+-- "taken" / "defended" stops it. The base is a map point name found in the message, else the words after
+-- "assaulted the" / "attaqué". No second bar when the map already started it.
+local ASSAULT = { "assault", "attaqu", "angegriffen", "asalt", "attacc", "атак" }
+local STOP = { "taken", "claims", "pris", "prise", "eingenommen", "tomado", "conquist", "захват",
+    "defend", "défend", "verteidigt", "difes", "защищ" }
+local capOn = false
+
+local function HasAny(text, words)
+    for _, w in ipairs(words) do if text:find(w, 1, true) then return true end end
+    return false
+end
+
+local function BaseFromMessage(text)
+    for _, p in ipairs(POIs()) do
+        if p.name and p.name ~= "" and text:find(p.name, 1, true) then return p.name, p.icon end
+    end
+    local base = text:match("assaulted the (.-)!") or text:match("attaqué[e]? ?l?a? ?l?e? ?(.-)%s*!")
+    if base and base ~= "" and #base <= 40 then return base end
+end
+
+local function BaseMessage(text, team)
+    text = W.Safe(text)
+    if not capOn or type(text) ~= "string" then return end
+    local lower = text:lower()
+    local assault, stop = HasAny(lower, ASSAULT), HasAny(lower, STOP)
+    if not assault and not stop then return end
+    local base, icon = BaseFromMessage(text)
+    if not base then return end
+    local key = "cap:" .. base
+    if stop then StopBar(key); return end
+    local a = active[key]
+    if a and GetTime() - (a.ends - a.total) < 5 then return end -- just started by the map
+    StartBar(key, base, capTime, team, icon and { poi = icon } or 134420, team)
+end
+W.On("CHAT_MSG_BG_SYSTEM_HORDE", function(text) BaseMessage(text, "Horde") end)
+W.On("CHAT_MSG_BG_SYSTEM_ALLIANCE", function(text) BaseMessage(text, "Alliance") end)
+
 local function InstanceID()
     local _, kind, _, _, _, _, _, id = GetInstanceInfo()
     if kind ~= "pvp" then return nil end
@@ -443,6 +482,7 @@ local function Zone()
     local id = db and db.enabled and InstanceID()
     local on = id and not (CAPPING_ZONES[id] and CappingLoaded())
     W.Activate(poiEv, on and true or false)
+    capOn = on and true or false
     StopMatching("cap:")
     StopMatching("flag")
     if not InstanceID() then StopMatching("gates") end

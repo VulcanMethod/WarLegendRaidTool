@@ -691,6 +691,10 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		if self.hasFlag == hasFlag then return end
 		self.hasFlag = hasFlag
 		self:DispatchEvent(hasFlag and "FlagPickedUp" or "FlagDropped")
+		-- WarLegend: the flag also on the carrier's raid frame (FlagCarrier.lua)
+		if not self.PlayerIsEnemy and WarLegendPvP.MarkRaidFrameFlag then
+			WarLegendPvP:MarkRaidFrameFlag(self.PlayerDetails and self.PlayerDetails.PlayerName, hasFlag)
+		end
 	end
 
 	-- Shows/Hides targeting indicators for a button (the rated battleground sound alerts are gone: no rated BG on Forever)

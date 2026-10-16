@@ -118,7 +118,69 @@ local function clearCarriers(mainFrame)
 	end
 end
 
+-- WarLegend: a flag icon on the raid frame of an ally carrying the flag. The raid frames are found by their
+-- unit: EllesmereUI's headers (ERFGroupHeader1-8, ERFFlatHeader, ERFPartyHeader) and Blizzard's compact frames.
+-- Only a texture is added to them (allowed in combat), nothing of theirs is changed.
+local FLAG_ICONS = { Horde = [[Interface\WorldStateFrame\HordeFlag]], Alliance = [[Interface\WorldStateFrame\AllianceFlag]] }
+local raidFlags = {} -- [raid frame] = flag texture
+
+local function raidFrameButtons()
+	local list = {}
+	local function addChildren(header)
+		if not header or not header.GetChildren then return end
+		for _, child in ipairs({ header:GetChildren() }) do list[#list + 1] = child end
+	end
+	for i = 1, 8 do addChildren(_G["ERFGroupHeader" .. i]) end
+	addChildren(_G.ERFFlatHeader)
+	addChildren(_G.ERFPartyHeader)
+	for i = 1, 40 do
+		local f = _G["CompactRaidFrame" .. i]
+		if f then list[#list + 1] = f end
+	end
+	for i = 1, 5 do
+		local f = _G["CompactPartyFrameMember" .. i]
+		if f then list[#list + 1] = f end
+	end
+	return list
+end
+
+local function frameUnit(frame)
+	local unit = frame.GetAttribute and frame:GetAttribute("unit")
+	if type(unit) ~= "string" or issecret(unit) then unit = frame.unit end
+	if type(unit) ~= "string" or issecret(unit) or not UnitExists(unit) then return nil end
+	return unit
+end
+
+function WarLegendPvP:MarkRaidFrameFlag(name, hasFlag)
+	if hasFlag then
+		-- one carrier per team: the other flags go
+		for frame, tex in pairs(raidFlags) do tex:Hide() end
+	end
+	if not name then return end
+	local flagFaction = (self.UserFaction == "Horde") and "Alliance" or "Horde" -- an ally carries the enemy flag
+	for _, frame in ipairs(raidFrameButtons()) do
+		local unit = frameUnit(frame)
+		local unitName = unit and self:GetReadableUnitName(unit)
+		if unitName and self:GetPlayerbuttonByName(unitName) == self:GetPlayerbuttonByName(name) then
+			local tex = raidFlags[frame]
+			if not tex then
+				tex = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+				tex:SetSize(22, 22)
+				tex:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 4)
+				raidFlags[frame] = tex
+			end
+			tex:SetTexture(FLAG_ICONS[flagFaction])
+			tex:SetShown(hasFlag and true or false)
+		end
+	end
+end
+
+local function clearRaidFlags()
+	for _, tex in pairs(raidFlags) do tex:Hide() end
+end
+
 function WarLegendPvP:ResetFlagCarriers()
+	clearRaidFlags()
 	clearCarriers(self.Allies)
 	clearCarriers(self.Enemies)
 end
