@@ -95,6 +95,7 @@ end
 local function Snapshot()
     local c = Char()
     c.name = W.Safe(UnitName("player")) or "?"
+    c.full = W.UnitFullName("player") or c.full -- full identity ("First Surname" on Forever), for the guild bank
     c.realm = GetRealmName and GetRealmName() or "?"
     c.class = W.UnitClassToken("player")
     c.faction = UnitFactionGroup and UnitFactionGroup("player") or nil
@@ -424,6 +425,9 @@ local function BuildLockouts(p)
 end
 
 W.On("UPDATE_INSTANCE_INFO", function() if W.IsShown("Alts") then RefreshLockouts() end end)
+
+-- Every character of the account (read by the guild bank module)
+function W.AccountChars() return db and db.chars or {} end
 
 W.RegisterModule("Alts", L("My characters"), function(p)
     W.Title(p, L("My characters"))

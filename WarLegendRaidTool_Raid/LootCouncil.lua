@@ -92,6 +92,8 @@ W.AddFR({
     ["Soft-res: "] = "Soft-res : ",
     ["Council members: "] = "Membres du conseil : ",
     ["Awards"] = "Attributions",
+    ["Loots"] = "Loots",
+    ["Loots: items received in guild raids, last 30 days."] = "Loots : objets reçus en raid guilde, 30 derniers jours.",
 })
 local L = W.L
 
@@ -275,7 +277,19 @@ end
 
 function LC.Session() return S end
 
+-- a guild raid: at least half of the group is in the guild
+local function GuildRaid()
+    local n, g = 0, 0
+    for _, u in ipairs(W.GroupUnits()) do
+        n = n + 1
+        local name = W.UnitFullName(u)
+        if name and W.GuildMember(name) then g = g + 1 end
+    end
+    return n > 0 and g * 2 >= n
+end
+
 local function Record(entry)
+    if entry.g == nil then entry.g = GuildRaid() end
     table.insert(db.history, 1, entry)
     while #db.history > 1000 do table.remove(db.history) end
     if UI.history and UI.history:IsVisible() then LC.RefreshHistory() end
@@ -631,9 +645,29 @@ end
 -- Council voting window
 ---------------------------------------------------------------------------
 local VCOLS = { { L("Name"), 110 }, { L("Rank"), 80 }, { L("Response"), 110 }, { "ilvl", 40, "CENTER" },
-    { L("Gear"), 60 }, { L("Diff"), 40, "CENTER" }, { L("Votes"), 44, "CENTER" }, { L("Note"), 150 } }
+    { L("Gear"), 60 }, { L("Diff"), 40, "CENTER" }, { L("Votes"), 44, "CENTER" }, { L("Note"), 110 }, { L("Loots"), 40, "CENTER" } }
 W.TranslateField(VCOLS, 1)
 local VROW = 22
+
+-- Items each player received in guild raids over the last 30 days (loot log of this computer)
+local LOOT_DAYS = 30
+local function CountKey(name)
+    if not name then return nil end
+    local g = W.GuildMember(name)
+    return g and g.full:lower() or W.BaseName(name):lower()
+end
+
+local function LootCounts()
+    local counts, since = {}, time() - LOOT_DAYS * 86400
+    for _, h in ipairs(db.history) do
+        if (h.t or 0) < since then break end -- newest first
+        if h.g ~= false and h.winner then
+            local k = CountKey(h.winner)
+            if k then counts[k] = (counts[k] or 0) + 1 end
+        end
+    end
+    return counts
+end
 
 local function SortedCands(item)
     local list = {}
@@ -696,6 +730,7 @@ local function VoteRow(content)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(c.name, W.ClassColor(c.class))
         if c.note then GameTooltip:AddLine(c.note, 1, 1, 1, true) end
+        GameTooltip:AddLine(L("Loots: items received in guild raids, last 30 days."), 0.7, 0.7, 0.7, true)
         local voters = {}
         for v in pairs(c.votes) do voters[#voters + 1] = v end
         if #voters > 0 then GameTooltip:AddLine(L("Votes") .. ": " .. table.concat(voters, ", "), 0.7, 0.7, 0.7, true) end
@@ -790,6 +825,7 @@ function LC.RefreshVote()
         .. (sr and ("   |cff00ccff" .. L("Soft-res: ") .. table.concat(sr, ", ") .. "|r") or ""))
     local list, votes = SortedCands(item)
     local council = IsCouncil()
+    local counts = LootCounts()
     for i, c in ipairs(list) do
         local r = f.list:Row(i)
         r.cand = c
@@ -806,6 +842,8 @@ function LC.RefreshVote()
         local nv = votes(c)
         r.cells[7]:SetText(nv > 0 and ("|cffffcc33" .. nv .. "|r") or "0")
         r.cells[8]:SetText(c.note or "")
+        local got = counts[CountKey(c.name) or ""] or 0
+        r.cells[9]:SetText(got > 0 and got or "|cff7777770|r")
         r.g1.str, r.g2.str = c.g1, c.g2
         r.g1.tex:SetTexture(c.g1 and W.ItemIcon(c.g1) or nil); r.g1:SetShown(c.g1 ~= nil)
         r.g2.tex:SetTexture(c.g2 and W.ItemIcon(c.g2) or nil); r.g2:SetShown(c.g2 ~= nil)

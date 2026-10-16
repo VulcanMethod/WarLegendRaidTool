@@ -28,4 +28,7 @@ TalentReminder.lua
 QualityOfLife.lua
 PvP.lua
 Bugs.lua
+Roster.lua
+GuildBank.lua
+BGStats.lua
 VersionCheck.lua

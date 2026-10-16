@@ -1229,10 +1229,10 @@ local CATEGORIES = {
         { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
         { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "AutoLog", "Focus", "Summon" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer" } },
+        { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "BGStats" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "me", items = { "Guild", "Alts", "SimExport", "QualityOfLife", "VersionCheck", "Bugs" } },
+        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "VersionCheck", "Bugs" } },
     } },
 }
 
@@ -1707,6 +1707,70 @@ W.slash.reset = function(rest)
     end)
 end
 
+-- /wl help: every command in the chat (also shown for an unknown command)
+W.AddFR({
+    ["Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"] =
+        "Commandes (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = preset sélectionné si vide) :",
+    ["open / close the window"] = "ouvrir / fermer la fenêtre",
+    ["this list"] = "cette liste",
+    ["show / hide the minimap button"] = "afficher / cacher le bouton de la minicarte",
+    ["recent Lua errors"] = "erreurs Lua récentes",
+    ["memory and CPU used by the addon"] = "mémoire et CPU utilisés par l'addon",
+    ["reset one module's saved data (no name: list them)"] = "remettre à zéro les données d'un module (sans nom : les lister)",
+    ["switch /rl between Blizzard's /reload and EllesmereUI's popup"] = "basculer /rl entre le /reload de Blizzard et la fenêtre d'EllesmereUI",
+    ["combat log auto-start debug"] = "débogage du journal de combat automatique",
+    ["apply the preset: marks + groups"] = "appliquer le preset : marques + groupes",
+    ["only the preset's marks"] = "seulement les marques du preset",
+    ["only the preset's groups"] = "seulement les groupes du preset",
+    ["clear all marks"] = "effacer toutes les marques",
+    ["list the presets"] = "lister les presets",
+    ["create my assist macro"] = "créer ma macro d'assist",
+    ["ready check (leader / assist), else the check window"] = "ready check (chef / assistant), sinon la fenêtre de vérification",
+    ["check window (ready, durability)"] = "fenêtre de vérification (prêt, durabilité)",
+    ["Loot Council (vote | add [item] | test)"] = "Loot Council (vote | add [objet] | test)",
+    ["soft-res tab (players whisper \"!sr [item]\")"] = "onglet soft-res (les joueurs chuchotent \"!sr [objet]\")",
+    ["simulator export (simc, oxm, json)"] = "export pour simulateur (simc, oxm, json)",
+    ["summon list"] = "liste de summon",
+    ["graveyard timer test (fake waves)"] = "test du chrono de cimetière (fausses vagues)",
+    ["PvP frames settings"] = "réglages des cadres PvP",
+    ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
+    ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
+    ["stock of my bank characters"] = "stock de mes persos banque",
+    ["my premade history and records"] = "historique et records de mes premades",
+})
+local HELP = {
+    { "/wl", "open / close the window" },
+    { "/wl help", "this list" },
+    { "/wl minimap", "show / hide the minimap button" },
+    { "/wl bugs", "recent Lua errors" },
+    { "/wl perf", "memory and CPU used by the addon" },
+    { "/wl reset [name]", "reset one module's saved data (no name: list them)" },
+    { "/wl rl", "switch /rl between Blizzard's /reload and EllesmereUI's popup" },
+    { "/wl logdebug", "combat log auto-start debug" },
+    { "/wl apply [preset]", "apply the preset: marks + groups" },
+    { "/wl marks [preset]", "only the preset's marks" },
+    { "/wl groups [preset]", "only the preset's groups" },
+    { "/wl clear", "clear all marks" },
+    { "/wl list", "list the presets" },
+    { "/wl assist [preset]", "create my assist macro" },
+    { "/rc", "ready check (leader / assist), else the check window" },
+    { "/wl rc", "check window (ready, durability)" },
+    { "/wl loot", "Loot Council (vote | add [item] | test)" },
+    { "/wl sr", "soft-res tab (players whisper \"!sr [item]\")" },
+    { "/wl sim", "simulator export (simc, oxm, json)" },
+    { "/wl summon", "summon list" },
+    { "/wl trials", "guild trials (by rank)" },
+    { "/wl bank", "stock of my bank characters" },
+    { "/wl bg", "my premade history and records" },
+    { "/wl gy", "graveyard timer test (fake waves)" },
+    { "/wl pvp", "PvP frames settings" },
+    { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
+}
+W.slash.help = function()
+    W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))
+    for _, h in ipairs(HELP) do W.Print("|cffffff00" .. h[1] .. "|r - " .. L(h[2])) end
+end
+
 local function Slash(msg)
     if not W.Allowed() then W.Denied(); return end
     msg = msg or ""
@@ -1722,11 +1786,7 @@ local function Slash(msg)
     elseif W.slash[cmd] then
         W.slash[cmd](rest)
     else
-        W.Print(L("|cffffff00/wl|r: open the window"))
-        W.Print(L("/wl apply [preset]: marks + groups  |  /wl marks | groups [preset]"))
-        W.Print(L("/wl clear: clear marks  |  /wl list  |  /wl minimap"))
-        W.Print(L("/rc: start a ready check  |  /wl assist: create my assist macro  |  /wl logdebug"))
-        W.Print("/wl perf")
+        W.slash.help()
     end
 end
 SLASH_WARLEGENDRT1 = "/wl"
