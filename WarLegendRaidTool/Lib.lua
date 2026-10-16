@@ -20,6 +20,9 @@ local queue, pumping = {}, false
 -- a message the client keeps refusing (throttle, lockdown during a long boss fight) is given up after this
 local MAX_WAIT, MAX_QUEUE = 300, 150
 W.AddFR({
+    ["Voice: auto"] = "Voix : auto",
+    ["BigWigs (FR)"] = "BigWigs (FR)",
+    ["Beep"] = "Bip",
     ["Some messages could not be sent to the group (chat locked or throttled for too long)."] =
         "Des messages n'ont pas pu être envoyés au groupe (chat verrouillé ou bridé trop longtemps).",
 })
@@ -519,9 +522,45 @@ end
 -- "pop" of a big number (it starts large, settles, then fades). W.Pulse scales the frame it is given: give it an
 -- inner frame anchored at the CENTER of its holder with no offset, so it grows in place.
 local VOICE_PATH = "Interface\\AddOns\\WarLegendRaidTool\\Media\\Sounds\\Countdown\\"
+-- BigWigs' countdown font (Noto Sans Regular, SIL Open Font License, Media/Fonts/Noto_license.txt)
+W.COUNTDOWN_FONT = "Interface\\AddOns\\WarLegendRaidTool\\Media\\Fonts\\NotoSans-Regular.otf"
+
+-- Voices (W.DB("ui").countdownVoice): Amy / David / Jim come from BigWigs (CC BY-NC 3.0 / CC0, see
+-- Media/Sounds/Countdown/README.txt), Hortense / Zira were made with the Windows voices. "bigwigs": BigWigs'
+-- own French voice (Heroes announcer, (C) Blizzard, not copied here), played from BigWigs' folder when it is
+-- installed. "beep": the game's battleground countdown tick (file 567474, as BigWigs' "simple").
+local function BigWigsInstalled()
+    if C_AddOns and C_AddOns.DoesAddOnExist then return C_AddOns.DoesAddOnExist("BigWigs") end
+    return GetAddOnInfo and GetAddOnInfo("BigWigs") ~= nil
+end
+W.COUNTDOWN_VOICES = { "auto", "Amy", "David", "Jim", "Hortense", "Zira", "bigwigs", "beep" }
 function W.CountdownVoice(n)
-    if type(n) ~= "number" or n < 1 or n > 5 or not PlaySoundFile then return end
-    PlaySoundFile(VOICE_PATH .. (W.LANG == "fr" and "fr" or "en") .. "\\" .. n .. ".mp3", "Master")
+    if type(n) ~= "number" or n < 1 or n > 10 or not PlaySoundFile then return end
+    local voice = W.db and W.db.ui and W.db.ui.countdownVoice or "auto"
+    if voice == "auto" then
+        if W.LANG == "fr" then voice = BigWigsInstalled() and "bigwigs" or "Hortense" else voice = "Amy" end
+    end
+    if voice == "bigwigs" and not BigWigsInstalled() then voice = "Hortense" end
+    local file
+    if voice == "beep" then
+        file = 567474
+    elseif voice == "bigwigs" then
+        if n > 5 then return end
+        file = "Interface\\AddOns\\BigWigs\\Media\\Sounds\\Heroes\\frFR\\female\\" .. n .. ".ogg"
+    elseif voice == "Hortense" or voice == "Zira" then
+        if n > 5 then return end
+        file = VOICE_PATH .. (voice == "Hortense" and "fr" or "en") .. "\\" .. n .. ".mp3"
+    else
+        file = VOICE_PATH .. voice .. "\\" .. n .. ".ogg"
+    end
+    pcall(PlaySoundFile, file, "Master")
+end
+
+-- the voice cycle values for a panel ({ value, label })
+function W.CountdownVoiceValues()
+    local L = W.L
+    return { { "auto", L("Voice: auto") }, { "Amy", "Amy (EN)" }, { "David", "David (EN)" }, { "Jim", "Jim (EN)" },
+        { "Hortense", "Hortense (FR)" }, { "Zira", "Zira (EN)" }, { "bigwigs", L("BigWigs (FR)") }, { "beep", L("Beep") } }
 end
 
 function W.Pulse(frame, duration)

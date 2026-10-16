@@ -103,7 +103,7 @@ end
 -- text, color, subtitle, seconds before it goes away (nil: until told)
 local function Show(text, r, g, b, sub, duration)
     Create()
-    W.SetFont(frame.big, W.FONT, db.size or 72, "OUTLINE")
+    W.SetFont(frame.big, W.COUNTDOWN_FONT, db.size or 72, "THICKOUTLINE") -- as BigWigs: Noto Sans, thick outline
     frame.big:SetText(text)
     frame.big:SetTextColor(r, g, b)
     frame.sub:SetText(sub or "")
@@ -116,7 +116,7 @@ end
 
 local function Countdown(n)
     boundsEnd = nil
-    Show(tostring(n), 1, 0.82, 0, L("Duel"), 1)
+    Show(tostring(n), 1, 0, 0, L("Duel"), 1) -- red, as BigWigs' countdown
     if db.voice and n <= 5 then
         W.CountdownVoice(n)
     elseif db.sound and SOUNDKIT then
@@ -152,6 +152,8 @@ W.RegisterModule("DuelTimer", L("Duel timer"), function(p)
         :SetPoint("TOPLEFT", 32, -66)
     W.Check(p, L("Voice countdown (3, 2, 1...)"), function() return db.voice end, function(v) db.voice = v end)
         :SetPoint("TOPLEFT", 300, -66)
+    W.Cycle(p, 130, W.CountdownVoiceValues(), function() return W.DB("ui").countdownVoice or "auto" end,
+        function(v) W.DB("ui").countdownVoice = v; W.CountdownVoice(3) end):SetPoint("TOPLEFT", 520, -62)
     W.Check(p, L("Lock the countdown"), function() return db.locked end, function(v) db.locked = v end)
         :SetPoint("TOPLEFT", 32, -90)
     W.Label(p, L("Size:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 36, -126)

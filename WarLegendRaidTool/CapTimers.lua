@@ -152,7 +152,7 @@ local function EmphAnchor()
     bigCount:SetSize(1, 1)
     bigCount:SetPoint("BOTTOM", emphAnchor, "TOP", 0, 40)
     bigCount.text = bigCount:CreateFontString(nil, "OVERLAY")
-    W.SetFont(bigCount.text, W.FONT, 64, "OUTLINE")
+    W.SetFont(bigCount.text, W.COUNTDOWN_FONT, 56, "THICKOUTLINE") -- as BigWigs: Noto Sans, thick outline
     bigCount.text:SetPoint("CENTER")
     bigCount:Hide()
     return emphAnchor
@@ -214,7 +214,7 @@ local function Emphasize(now)
     if n >= 1 and n <= EMPH_AT and n ~= first.lastN then
         first.lastN = n
         EmphAnchor()
-        local c = COLORS[first.color] or COLORS.other
+        local c = { 1, 0, 0 } -- BigWigs' countdown red
         bigCount.text:SetText(n)
         bigCount.text:SetTextColor(c[1], c[2], c[3])
         W.Pulse(bigCount, 0.95)
@@ -647,6 +647,8 @@ W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
     W.Check(p, L("Big 5-4-3-2-1 countdown"), function() return db.bigCount end, function(v) db.bigCount = v end)
         :SetPoint("TOPLEFT", 350, -88)
     W.Check(p, L("Voice countdown"), function() return db.voice end, function(v) db.voice = v end):SetPoint("TOPLEFT", 350, -112)
+    W.Cycle(p, 130, W.CountdownVoiceValues(), function() return W.DB("ui").countdownVoice or "auto" end,
+        function(v) W.DB("ui").countdownVoice = v; W.CountdownVoice(3) end):SetPoint("TOPLEFT", 520, -112)
     W.Check(p, L("Time to win (final score estimate)"), function() return db.win end, function(v) db.win = v; Zone() end)
         :SetPoint("TOPLEFT", 330, -40)
     W.Check(p, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -112)
