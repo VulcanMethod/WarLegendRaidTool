@@ -276,6 +276,17 @@ W.On("START_TIMER", function(timerType, timeSeconds)
     if not Extras() or not db.queue or W.Safe(timerType) ~= 0 then return end
     timeSeconds = W.Safe(timeSeconds)
     if type(timeSeconds) ~= "number" then return end
+    -- Blizzard's own start timer bar would show the same countdown twice: hidden, as Capping does
+    -- (once now, once right after in case Blizzard's handler runs after ours)
+    local function HideBlizzardTimer()
+        if TimerTracker and type(TimerTracker.timerList) == "table" then
+            for _, timer in ipairs(TimerTracker.timerList) do
+                if timer.bar then timer.bar:Hide() end
+            end
+        end
+    end
+    HideBlizzardTimer()
+    W.After(0, HideBlizzardTimer)
     local a = active.gates
     local left = a and (a.ends - GetTime())
     if not a or timeSeconds >= 45 or math.abs(timeSeconds - left) > 1 then -- not restarted for a 1 s drift
