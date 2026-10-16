@@ -28,30 +28,71 @@ local function Try(obj, method, ...)
 	if obj and obj[method] then return pcall(obj[method], obj, ...) end
 end
 
--- the dispel type textures (border of each icon, and an optional texture around the whole unit frame)
+-- the dispel type textures: our own flat art (white square / lines) that the client only colors with the
+-- dispel type (PreserveAsset, as BetterBlizzFrames' pixel borders); the stretched Blizzard border atlas
+-- when the client has no PreserveAsset
+local WHITE = [[Interface\Buttons\WHITE8X8]]
 local function AddDispelTexture(button, texture)
 	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
 	if not (styles and button.AddDispelTypeTexture) then return end
+	local own = styles.PreserveAsset ~= nil
+	if own then texture:SetTexture(WHITE) end
 	pcall(button.AddDispelTypeTexture, button, texture, {
-		style = styles.Border,
+		style = own and styles.PreserveAsset or styles.Border,
 		showWhenHarmful = true,
 		showWhenHelpful = false,
 		showWithoutDispelType = false,
 	})
 end
 
+-- a flat square behind an icon (1 px shows around it)
+local function Square(parent, sublevel, r, g, b)
+	local t = parent:CreateTexture(nil, "BACKGROUND", nil, sublevel)
+	t:SetAllPoints(parent)
+	t:SetTexture(WHITE)
+	if r then t:SetVertexColor(r, g, b, 1) end
+	return t
+end
+
+-- thin lines around a frame (2 px), and a light tint over it, in the dispel color
+local function FrameHighlight(button, holder)
+	local function line(p1, p2, w, h)
+		local t = holder:CreateTexture(nil, "OVERLAY", nil, 7)
+		t:SetPoint(p1, holder, p1)
+		t:SetPoint(p2, holder, p2)
+		if w then t:SetWidth(w) end
+		if h then t:SetHeight(h) end
+		AddDispelTexture(button, t)
+	end
+	line("TOPLEFT", "TOPRIGHT", nil, 2)
+	line("BOTTOMLEFT", "BOTTOMRIGHT", nil, 2)
+	line("TOPLEFT", "BOTTOMLEFT", 2, nil)
+	line("TOPRIGHT", "BOTTOMRIGHT", 2, nil)
+	local tint = holder:CreateTexture(nil, "OVERLAY", nil, 6)
+	tint:SetPoint("TOPLEFT", 2, -2)
+	tint:SetPoint("BOTTOMRIGHT", -2, 2)
+	tint:SetAlpha(0.18)
+	AddDispelTexture(button, tint)
+end
+
 local function InitButton(button, group, glowParent)
 	local size = (group.sizeFn and group.sizeFn()) or group.size or 20
 	button:SetSize(size, size)
-	local icon = button:CreateTexture(nil, "BACKGROUND")
-	icon:SetAllPoints(button)
+	-- black square, then the dispel colored square, the icon 1 px inside: a clean 1 px border
+	Square(button, -8, 0, 0, 0)
+	if group.dispelBorder then AddDispelTexture(button, Square(button, -7)) end
+	local icon = button:CreateTexture(nil, "ARTWORK")
+	icon:SetPoint("TOPLEFT", 1, -1)
+	icon:SetPoint("BOTTOMRIGHT", -1, 1)
 	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 	Try(button, "SetIcon", icon)
 	local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-	cooldown:SetAllPoints(button)
+	cooldown:SetPoint("TOPLEFT", 1, -1)
+	cooldown:SetPoint("BOTTOMRIGHT", -1, 1)
 	cooldown:SetReverse(true)
 	cooldown:SetDrawEdge(false)
 	cooldown:SetDrawBling(false)
+	Try(cooldown, "SetSwipeColor", 0, 0, 0, 0.6)
 	cooldown:SetHideCountdownNumbers(not group.timer)
 	Try(cooldown, "SetMinimumCountdownDuration", 0)
 	Try(cooldown, "SetUsingParentLevel", true)
@@ -59,21 +100,14 @@ local function InitButton(button, group, glowParent)
 	local count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 	count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, 0)
 	Try(button, "SetApplicationCount", count)
-	if group.dispelBorder then
-		local border = button:CreateTexture(nil, "OVERLAY")
-		border:SetPoint("TOPLEFT", button, "TOPLEFT", -1, 1)
-		border:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
-		AddDispelTexture(button, border)
-	end
 	if group.frameGlow and glowParent then
-		-- colored by the client with the dispel type, drawn around the whole unit frame. Its holder is a child of
-		-- the aura button: hidden with it when the aura goes away
+		-- drawn around the whole unit frame. Its holder is a child of the aura button: hidden with it when the
+		-- aura goes away
 		local holder = CreateFrame("Frame", nil, button)
-		holder:SetPoint("TOPLEFT", glowParent, "TOPLEFT", -3, 3)
-		holder:SetPoint("BOTTOMRIGHT", glowParent, "BOTTOMRIGHT", 3, -3)
-		local glow = holder:CreateTexture(nil, "OVERLAY")
-		glow:SetAllPoints(holder)
-		AddDispelTexture(button, glow)
+		holder:SetPoint("TOPLEFT", glowParent, "TOPLEFT", -2, 2)
+		holder:SetPoint("BOTTOMRIGHT", glowParent, "BOTTOMRIGHT", 2, -2)
+		holder:SetFrameLevel(glowParent:GetFrameLevel() + 15)
+		FrameHighlight(button, holder)
 	end
 	if Try(button, "SetMouseMotionEnabled", false) == nil then button:EnableMouse(false) end
 end

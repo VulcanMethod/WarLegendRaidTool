@@ -228,17 +228,19 @@ function dispel:AttachToPlayerButton(playerButton)
 	--  then the other debuffs
 	--  left of the frame: the missing buffs of my class (greyed, read by us), then my buffs on the player
 	local NA = WarLegendPvP.NativeAuras
+	-- icons as high as the bar (a bit less), read when the client makes each icon
+	local function IconSize() return math.max(14, math.floor((playerButton:GetHeight() or 22) - 4)) end
 	if not playerButton.PlayerIsEnemy and NA and NA.Available() then
 		f.native = NA.Create(f, {
-			{ key = "dispel", filter = "HARMFUL|RAID_PLAYER_DISPELLABLE", max = MAX_DEBUFFS, size = 18, dispelBorder = true, frameGlow = true },
-			{ key = "other", filter = "HARMFUL|!RAID_PLAYER_DISPELLABLE", max = 4, size = 18, dispelBorder = true },
+			{ key = "dispel", filter = "HARMFUL|RAID_PLAYER_DISPELLABLE", max = MAX_DEBUFFS, sizeFn = IconSize, dispelBorder = true, frameGlow = true },
+			{ key = "other", filter = "HARMFUL|!RAID_PLAYER_DISPELLABLE", max = 4, sizeFn = IconSize, dispelBorder = true },
 		}, playerButton)
 		if f.native then
 			f.left = CreateFrame("Frame", nil, playerButton)
 			f.left:SetPoint("RIGHT", playerButton, "LEFT", -2, 0)
 			f.left:SetSize(1, 18)
 			f.leftNative = NA.Create(f.left, {
-				{ key = "mine", filter = "HELPFUL|PLAYER", max = 4, size = 18 },
+				{ key = "mine", filter = "HELPFUL|PLAYER", max = 4, sizeFn = IconSize },
 			}, nil, true)
 			if f.leftNative then
 				-- hangs left of the greyed icons (f.left grows with them)
@@ -268,7 +270,8 @@ function dispel:AttachToPlayerButton(playerButton)
 		local function put(e, r, g, b, grey, left)
 			n = n + 1
 			local ic = Icon(n)
-			ic:SetSize(size, size)
+			local s = grey and math.floor(size * 0.75) or size -- missing buffs: smaller
+			ic:SetSize(s, s)
 			ic:ClearAllPoints()
 			if left then -- grows to the left of the frame
 				ic:SetParent(f.left)
@@ -281,7 +284,7 @@ function dispel:AttachToPlayerButton(playerButton)
 			end
 			ic.tex:SetTexture(e.icon)
 			ic.tex:SetDesaturated(grey and true or false)
-			ic:SetAlpha(grey and 0.45 or 1)
+			ic:SetAlpha(grey and 0.4 or 1)
 			ic:SetBackdropBorderColor(r, g, b, 1)
 			ic:Show()
 		end
