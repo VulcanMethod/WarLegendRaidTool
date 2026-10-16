@@ -214,14 +214,20 @@ function dispel:AttachToPlayerButton(playerButton)
 	f.icons = {}
 	playerButton.Dispel = f
 
-	-- border around the whole button, in the dispel color
-	local glow = CreateFrame("Frame", nil, playerButton, BackdropTemplateMixin and "BackdropTemplate")
-	glow:SetPoint("TOPLEFT", playerButton, "TOPLEFT", -2, 2)
-	glow:SetPoint("BOTTOMRIGHT", playerButton, "BOTTOMRIGHT", 2, -2)
-	glow:SetFrameLevel(playerButton:GetFrameLevel() + 10)
-	glow:SetBackdrop({ edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 2 })
-	glow:Hide()
-	f.glow = glow
+	-- the health bar in the dispel color (when the client's aura container is missing, and in test mode):
+	-- a texture over the bar's fill, made when first needed (the health bar module may come after this one)
+	local tint
+	local function Tint()
+		if tint then return tint end
+		local bar = playerButton.healthBar
+		local fill = bar and bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+		if not fill then return nil end
+		tint = bar:CreateTexture(nil, "ARTWORK", nil, 7)
+		tint:SetAllPoints(fill)
+		tint:SetTexture(fill:GetTexture())
+		tint:Hide()
+		return tint
+	end
 
 	-- the client's aura containers (secret-safe):
 	--  right of the frame: the debuffs I can dispel (icon border + frame border in the dispel type color),
@@ -293,17 +299,20 @@ function dispel:AttachToPlayerButton(playerButton)
 		for i = n + 1, #f.icons do f.icons[i]:Hide() end
 		self:SetWidth(f.native and 8 * 20 or math.max(1, nr * (size + 2)))
 		if f.left then f.left:SetWidth(math.max(1, nl * (size + 2))) end
-		if border then
-			glow:SetBackdropBorderColor(border[1], border[2], border[3], 1)
-			glow:Show()
-		else
-			glow:Hide()
+		local t = border and Tint() or tint
+		if t then
+			if border then
+				t:SetVertexColor(border[1], border[2], border[3], 1)
+				t:Show()
+			else
+				t:Hide()
+			end
 		end
 	end
 
 	function f:Clear()
 		for i = 1, #f.icons do f.icons[i]:Hide() end
-		glow:Hide()
+		if tint then tint:Hide() end
 		if f.native then NA.SetUnit(f.native, nil) end
 		if f.leftNative then NA.SetUnit(f.leftNative, nil) end
 	end

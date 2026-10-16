@@ -32,11 +32,11 @@ end
 -- dispel type (PreserveAsset, as BetterBlizzFrames' pixel borders); the stretched Blizzard border atlas
 -- when the client has no PreserveAsset
 local WHITE = [[Interface\Buttons\WHITE8X8]]
-local function AddDispelTexture(button, texture)
+local function AddDispelTexture(button, texture, asset)
 	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
 	if not (styles and button.AddDispelTypeTexture) then return end
 	local own = styles.PreserveAsset ~= nil
-	if own then texture:SetTexture(WHITE) end
+	if own then texture:SetTexture(asset or WHITE) end
 	pcall(button.AddDispelTypeTexture, button, texture, {
 		style = own and styles.PreserveAsset or styles.Border,
 		showWhenHarmful = true,
@@ -54,25 +54,16 @@ local function Square(parent, sublevel, r, g, b)
 	return t
 end
 
--- thin lines around a frame (2 px), and a light tint over it, in the dispel color
-local function FrameHighlight(button, holder)
-	local function line(p1, p2, w, h)
-		local t = holder:CreateTexture(nil, "OVERLAY", nil, 7)
-		t:SetPoint(p1, holder, p1)
-		t:SetPoint(p2, holder, p2)
-		if w then t:SetWidth(w) end
-		if h then t:SetHeight(h) end
-		AddDispelTexture(button, t)
-	end
-	line("TOPLEFT", "TOPRIGHT", nil, 2)
-	line("BOTTOMLEFT", "BOTTOMRIGHT", nil, 2)
-	line("TOPLEFT", "BOTTOMLEFT", 2, nil)
-	line("TOPRIGHT", "BOTTOMRIGHT", 2, nil)
-	local tint = holder:CreateTexture(nil, "OVERLAY", nil, 6)
-	tint:SetPoint("TOPLEFT", 2, -2)
-	tint:SetPoint("BOTTOMRIGHT", -2, 2)
-	tint:SetAlpha(0.18)
-	AddDispelTexture(button, tint)
+-- the health bar of the unit frame in the dispel color: a texture over the bar's fill (it follows the health,
+-- same bar texture), under the health text. Hidden with the aura button.
+local function HealthBarColor(button, unitFrame)
+	local bar = unitFrame.healthBar
+	local fill = bar and bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+	if not fill then return end
+	local tint = bar:CreateTexture(nil, "ARTWORK", nil, 7)
+	tint:SetAllPoints(fill)
+	AddDispelTexture(button, tint, fill:GetTexture())
+	button:HookScript("OnHide", function() tint:Hide() end)
 end
 
 local function InitButton(button, group, glowParent)
@@ -100,15 +91,7 @@ local function InitButton(button, group, glowParent)
 	local count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 	count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, 0)
 	Try(button, "SetApplicationCount", count)
-	if group.frameGlow and glowParent then
-		-- drawn around the whole unit frame. Its holder is a child of the aura button: hidden with it when the
-		-- aura goes away
-		local holder = CreateFrame("Frame", nil, button)
-		holder:SetPoint("TOPLEFT", glowParent, "TOPLEFT", -2, 2)
-		holder:SetPoint("BOTTOMRIGHT", glowParent, "BOTTOMRIGHT", 2, -2)
-		holder:SetFrameLevel(glowParent:GetFrameLevel() + 15)
-		FrameHighlight(button, holder)
-	end
+	if group.frameGlow and glowParent then HealthBarColor(button, glowParent) end
 	if Try(button, "SetMouseMotionEnabled", false) == nil then button:EnableMouse(false) end
 end
 
