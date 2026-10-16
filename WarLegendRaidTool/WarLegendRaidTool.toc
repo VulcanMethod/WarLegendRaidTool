@@ -35,4 +35,5 @@ CapTimers.lua
 DangerAlert.lua
 CCAlert.lua
 CooldownText.lua
+DuelTimer.lua
 VersionCheck.lua

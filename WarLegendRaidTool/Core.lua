@@ -1324,7 +1324,7 @@ local CATEGORIES = {
     { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "MarksBar", "InviteTool", "AutoPromote" } },
         { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "CCAlert", "AutoLog", "Focus", "Summon" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "CCAlert", "DuelTimer", "AutoLog", "Focus", "Summon" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
         { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "CapTimers", "BGStats" } },
     } },
@@ -2015,6 +2015,7 @@ W.AddFR({
     ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
     ["warning when an enemy player or a dangerous mob is near"] = "alerte quand un joueur ennemi ou un monstre dangereux approche",
     ["big icon when I am crowd controlled"] = "grosse icône quand je suis sous contrôle (CC)",
+    ["big countdown for duels (start, out of the duel area)"] = "gros compte à rebours pour les duels (début, hors de la zone)",
     ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
@@ -2051,6 +2052,7 @@ local HELP = {
     { "/wl caps", "battleground timers: captures, gates, queue, flag (Capping style)" },
     { "/wl danger", "warning when an enemy player or a dangerous mob is near" },
     { "/wl cc", "big icon when I am crowd controlled" },
+    { "/wl duel", "big countdown for duels (start, out of the duel area)" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))
