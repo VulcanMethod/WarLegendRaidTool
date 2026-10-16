@@ -1770,7 +1770,7 @@ W.AddFR({
     ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
     ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
     ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
-    ["base capture timers (Capping style)"] = "chronos de capture des bases (style Capping)",
+    ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
 })
@@ -1802,7 +1802,7 @@ local HELP = {
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
     { "/wl bgmsg", "last battleground messages (to copy)" },
-    { "/wl caps", "base capture timers (Capping style)" },
+    { "/wl caps", "battleground timers: captures, gates, queue, flag (Capping style)" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))

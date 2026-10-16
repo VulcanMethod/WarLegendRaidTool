@@ -1,27 +1,35 @@
--- WarLegend RaidTool - Base capture timers
--- Capping's Arathi Basin logic for any battleground with bases (Darkspear Island...): the map points of
--- interest change icon when a base is assaulted ("contested" icons), a bar then counts down the capture
--- time in the color of the team taking it. Same look as the Capping bars. Battlegrounds Capping already
--- covers (Arathi Basin, Alterac Valley) are left to it when it is loaded.
--- Cost: nothing outside battlegrounds; in one, the map is read when the game says it changed.
+-- WarLegend RaidTool - Battleground timers (the good ideas of Capping, Capping look)
+--  * base captures: the map points of interest change icon when a base is assaulted ("contested" icons),
+--    a bar counts down the capture in the color of the team taking it (Darkspear Island, Arathi, Alterac...)
+--  * battle begins (gates), queue (estimated wait, then time left to enter), flag respawn after a capture
+--  * Shift-click a bar: /say, Ctrl-click: battleground chat
+-- When Capping itself is loaded it keeps what it does (queue, gates, flag, Arathi / Alterac captures):
+-- only the captures of the other battlegrounds are left here, no bar twice.
+-- Cost: nothing outside battlegrounds and queues; in one, the map is read when the game says it changed.
 local W = WLRT
 W.AddFR({
-    ["Capture timers"] = "Chronos de capture",
-    ["Show base capture timers in battlegrounds"] = "Afficher les chronos de capture des bases en champ de bataille",
+    ["Battleground timers"] = "Chronos de champ de bataille",
+    ["Base capture timers"] = "Chronos de capture des bases",
+    ["Battle start and queue bars"] = "Barres de début de bataille et de file d'attente",
+    ["Flag respawn after a capture"] = "Réapparition du drapeau après une capture",
     ["Lock the bars"] = "Verrouiller les barres",
-    ["Capture time:"] = "Temps de capture :",
+    ["Capture time (other battlegrounds):"] = "Temps de capture (autres champs de bataille) :",
     ["%d s"] = "%d s",
     ["Test"] = "Test",
     ["Reset position"] = "Réinitialiser la position",
     ["Map points now"] = "Points de la carte maintenant",
-    ["When a base is assaulted (its map icon turns contested), a bar counts down until it is taken. Arathi Basin and Alterac Valley are left to Capping when it is installed. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."] =
-        "Quand une base est attaquée (son icône sur la carte passe en contesté), une barre compte jusqu'à la prise. Arathi et Alterac sont laissés à Capping s'il est installé. Si un champ de bataille n'affiche rien, ouvre « Points de la carte maintenant » pendant une attaque et envoie le texte.",
+    ["Battle begins"] = "Début de la bataille",
+    ["Flag respawns"] = "Réapparition du drapeau",
+    ["Capping is loaded: it keeps its queue, gates, flag and Arathi / Alterac bars, these are only for the other battlegrounds."] =
+        "Capping est chargé : il garde ses barres de file, de portes, de drapeau et d'Arathi / Alterac, celles-ci ne servent qu'aux autres champs de bataille.",
+    ["A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."] =
+        "Une base attaquée (icône contestée sur la carte) a une barre jusqu'à sa prise : Alterac 5 min, Arathi 1 min, les autres champs de bataille le temps choisi ici. Maj-clic sur une barre : /dire, Ctrl-clic : canal du champ de bataille. Si un champ de bataille n'affiche rien, ouvre « Points de la carte maintenant » pendant une attaque et envoie le texte.",
     ["Not in a battleground."] = "Pas en champ de bataille.",
 })
 local L = W.L
 local db
 
--- contested icons (POI texture index) -> team taking the base; from Capping (Core.lua iconDataConflict)
+-- contested icons (POI texture index) -> team taking the base; from Capping (iconDataConflict)
 local CONTESTED = {
     [3] = "Alliance", [13] = "Horde",   -- graveyard
     [8] = "Alliance", [11] = "Horde",   -- tower
@@ -31,23 +39,37 @@ local CONTESTED = {
     [32] = "Alliance", [34] = "Horde",  -- farm / house
     [37] = "Alliance", [39] = "Horde",  -- stables / horse
 }
-local TEAM_COLOR = { Alliance = { 0, 0, 1 }, Horde = { 1, 0, 0 } } -- Capping's colorAlliance / colorHorde
-local CAPPING_ZONES = { [529] = true, [30] = true }            -- Arathi Basin, Alterac Valley (instance IDs)
-local POI_ICONS = 136441                                       -- Interface/Minimap/POIIcons
+-- capture time per battleground instance (Capping's modules); others: db.capTime
+local ZONE_CAPTIME = { [30] = 300, [2197] = 241, [529] = 60, [2107] = 60 }
+local CAPPING_ZONES = { [30] = true, [2197] = true, [529] = true, [2107] = true } -- Alterac, Arathi
+local COLORS = { Alliance = { 0, 0, 1 }, Horde = { 1, 0, 0 }, other = { 1, 1, 0 }, queue = { 0.6, 0.6, 0.6 } }
+local POI_ICONS = 136441 -- Interface/Minimap/POIIcons
+local FLAG_RESPAWN = 12
+
+-- "X captured the flag" in each language (BattlegroundTargets / Capping triggers)
+local CAPTURED = ({
+    deDE = "errungen!", esES = "capturado la bandera", esMX = "capturado la bandera", frFR = "a pris le drapeau",
+    itIT = "conquistato la bandiera", koKR = "깃발 쟁탈에 성공했습니다!", ptBR = "capturou a Bandeira", ruRU = "захватывает",
+    zhCN = "夺取", zhTW = "佔據了",
+})[GetLocale()] or "captured the"
 
 local CAP_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"
 local CAP_W, CAP_H, CAP_FONT_SIZE = 200, 20, 10
 
 W.OnReady(function()
-    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60 })
+    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60, queue = true, flag = true })
     if type(db.point) ~= "table" then db.point = { "TOP", "TOP", 0, -150 } end
 end)
 
+local function CappingLoaded()
+    return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Capping") or false
+end
+
 ---------------------------------------------------------------------------
--- Bars (the Capping look, as the graveyard timer)
+-- Bars
 ---------------------------------------------------------------------------
 local anchor
-local bars, active = {}, {} -- active: [poi name] = { bar, ends, team }
+local pool, active = {}, {} -- active: [key] = { bar, ends, total, label, team }
 
 local function Place()
     local p = db.point
@@ -55,9 +77,32 @@ local function Place()
     anchor:SetPoint(p[1], UIParent, p[2], p[3], p[4])
 end
 
+local function TimeText(left)
+    if left < 10 then return string.format("%.1f", left) end
+    if left >= 60 then return string.format("%d:%02d", math.floor(left / 60), math.floor(left % 60)) end
+    return string.format("%d", left)
+end
+
+-- Shift-click: /say, Ctrl-click: battleground chat (raid outside one), like Capping
+local function Report(a)
+    local channel = IsShiftKeyDown() and "SAY" or (IsControlKeyDown() and "INSTANCE_CHAT") or nil
+    if not channel then return end
+    if channel == "INSTANCE_CHAT" and not (IsInGroup and IsInGroup(2)) then channel = "RAID" end
+    local left = math.max(0, a.ends - GetTime())
+    local t = TimeText(left)
+    if not t:find("[:%.]") then t = "0:" .. t end
+    local team = a.team == "Horde" and FACTION_HORDE or (a.team == "Alliance" and FACTION_ALLIANCE) or nil
+    W.SendChat(a.label .. " - " .. t .. (team and (" (" .. team .. ")") or ""), channel)
+end
+
 local function NewBar()
     local f = CreateFrame("Frame", nil, anchor)
     f:SetSize(CAP_W, CAP_H)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function() if not db.locked then anchor:StartMoving() end end)
+    f:SetScript("OnDragStop", function() anchor:GetScript("OnDragStop")(anchor) end)
+    f:SetScript("OnMouseUp", function(self) if self.data then Report(self.data) end end)
     f.icon = f:CreateTexture(nil, "ARTWORK")
     f.icon:SetSize(CAP_H, CAP_H)
     f.icon:SetPoint("LEFT")
@@ -87,44 +132,30 @@ end
 
 local function Layout()
     local list = {}
-    for name, a in pairs(active) do list[#list + 1] = a; a.name = name end
+    for _, a in pairs(active) do list[#list + 1] = a end
     table.sort(list, function(x, y) return x.ends < y.ends end)
     for i, a in ipairs(list) do
         a.bar:ClearAllPoints()
         a.bar:SetPoint("TOP", anchor, "TOP", 0, -(i - 1) * CAP_H)
     end
     anchor:SetHeight(math.max(CAP_H, #list * CAP_H))
-    anchor:SetShown(#list > 0 or anchor.unlockedShow)
+    anchor:SetShown(#list > 0)
 end
 
-local function StopBar(name)
-    local a = active[name]
+local function StopBar(key)
+    local a = active[key]
     if not a then return end
     a.bar:Hide()
-    bars[#bars + 1] = a.bar
-    active[name] = nil
+    a.bar.data = nil
+    pool[#pool + 1] = a.bar
+    active[key] = nil
     Layout()
 end
 
-local function StopAll()
-    for name in pairs(active) do StopBar(name) end
-end
-
-local function StartBar(name, secs, team, poiIcon)
-    StopBar(name)
-    local bar = table.remove(bars) or NewBar()
-    local c = TEAM_COLOR[team] or { 1, 1, 0 }
-    bar.bar:SetStatusBarColor(c[1], c[2], c[3])
-    bar.bar:SetMinMaxValues(0, secs)
-    bar.text:SetText(name)
-    bar.icon:SetTexture(POI_ICONS)
-    if poiIcon and GetPOITextureCoords then
-        local l, r, t, b = GetPOITextureCoords(poiIcon)
-        if l then bar.icon:SetTexCoord(l, r, t, b) end
+local function StopMatching(prefix)
+    for key in pairs(active) do
+        if key:sub(1, #prefix) == prefix then StopBar(key) end
     end
-    bar:Show()
-    active[name] = { bar = bar, ends = GetTime() + secs, team = team }
-    Layout()
 end
 
 local acc = 0
@@ -133,15 +164,13 @@ local function OnUpdate(_, e)
     if acc < 0.1 then return end
     acc = 0
     local now = GetTime()
-    for name, a in pairs(active) do
+    for key, a in pairs(active) do
         local left = a.ends - now
         if left <= 0 then
-            StopBar(name)
+            StopBar(key)
         else
             a.bar.bar:SetValue(left)
-            if left < 10 then a.bar.time:SetFormattedText("%.1f", left)
-            elseif left >= 60 then a.bar.time:SetFormattedText("%d:%02d", math.floor(left / 60), left % 60)
-            else a.bar.time:SetFormattedText("%d", left) end
+            a.bar.time:SetText(TimeText(left))
         end
     end
 end
@@ -153,9 +182,6 @@ local function CreateAnchor()
     anchor:SetFrameStrata("MEDIUM")
     anchor:SetClampedToScreen(true)
     anchor:SetMovable(true)
-    anchor:EnableMouse(true)
-    anchor:RegisterForDrag("LeftButton")
-    anchor:SetScript("OnDragStart", function(self) if not db.locked then self:StartMoving() end end)
     anchor:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local point, _, rel, x, y = self:GetPoint()
@@ -166,10 +192,36 @@ local function CreateAnchor()
     Place()
 end
 
+-- icon: a file ID, or { poi = texture index } for a map point icon
+local function StartBar(key, label, secs, color, icon, team)
+    if not secs or secs <= 0 then return end
+    CreateAnchor()
+    StopBar(key)
+    local bar = table.remove(pool) or NewBar()
+    local c = COLORS[color] or COLORS.other
+    bar.bar:SetStatusBarColor(c[1], c[2], c[3])
+    bar.bar:SetMinMaxValues(0, secs)
+    bar.text:SetText(label)
+    if type(icon) == "table" and icon.poi and GetPOITextureCoords then
+        bar.icon:SetTexture(POI_ICONS)
+        local l, r, t, b = GetPOITextureCoords(icon.poi)
+        if l then bar.icon:SetTexCoord(l, r, t, b) end
+    else
+        bar.icon:SetTexture(icon or 134400)
+        bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    end
+    local a = { bar = bar, ends = GetTime() + secs, total = secs, label = label, team = team }
+    bar.data = a
+    bar:Show()
+    active[key] = a
+    Layout()
+    return a
+end
+
 ---------------------------------------------------------------------------
--- Map points of interest
+-- Base captures (map points of interest)
 ---------------------------------------------------------------------------
-local mapID, lastIcon = nil, {}
+local mapID, capTime, lastIcon = nil, 60, {}
 
 local function POIs()
     local out = {}
@@ -198,9 +250,9 @@ local function POIsUpdated()
             lastIcon[p.name] = key
             local team = p.icon and CONTESTED[p.icon]
             if team then
-                StartBar(p.name, db.capTime or 60, team, p.icon)
+                StartBar("cap:" .. p.name, p.name, capTime, team, { poi = p.icon }, team)
             else
-                StopBar(p.name) -- taken, or defended
+                StopBar("cap:" .. p.name) -- taken, or defended
             end
         end
     end
@@ -214,21 +266,75 @@ local function InstanceID()
     return W.Safe(id)
 end
 
-local function CappingLoaded()
-    return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Capping")
-end
+---------------------------------------------------------------------------
+-- Gates, flag respawn, queue (left to Capping when it is loaded)
+---------------------------------------------------------------------------
+local function Extras() return db and db.enabled and not CappingLoaded() end
 
+-- Enum.StartTimerType.PvPBeginTimer = 0
+W.On("START_TIMER", function(timerType, timeSeconds)
+    if not Extras() or not db.queue or W.Safe(timerType) ~= 0 then return end
+    timeSeconds = W.Safe(timeSeconds)
+    if type(timeSeconds) ~= "number" then return end
+    local a = active.gates
+    local left = a and (a.ends - GetTime())
+    if not a or timeSeconds >= 45 or math.abs(timeSeconds - left) > 1 then -- not restarted for a 1 s drift
+        StartBar("gates", L("Battle begins"), timeSeconds, "other", 136106) -- Spell_Nature_TimeStop
+    end
+end)
+
+local function FlagMessage(text)
+    text = W.Safe(text)
+    if not Extras() or not db.flag or type(text) ~= "string" or not InstanceID() then return end
+    if text:find(CAPTURED, 1, true) then
+        StartBar("flag", L("Flag respawns"), FLAG_RESPAWN, "other", 134420) -- INV_Misc_Rune_07
+    end
+end
+W.On("CHAT_MSG_BG_SYSTEM_HORDE", FlagMessage)
+W.On("CHAT_MSG_BG_SYSTEM_ALLIANCE", FlagMessage)
+W.On("CHAT_MSG_BG_SYSTEM_NEUTRAL", FlagMessage)
+
+W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
+    queueId = W.Safe(queueId)
+    if not Extras() or not db.queue or not queueId or not GetBattlefieldStatus then return end
+    local status, mapName = GetBattlefieldStatus(queueId)
+    status, mapName = W.Safe(status), W.Safe(mapName) or "?"
+    local key = "queue:" .. queueId
+    if status == "confirm" then -- the battleground popped: time left to enter
+        local secs = GetBattlefieldPortExpiration and W.Safe(GetBattlefieldPortExpiration(queueId))
+        if type(secs) == "number" and secs > 0 then StartBar(key, mapName, secs, "other", 132327) end -- Ability_TownWatch
+    elseif status == "queued" and GetBattlefieldEstimatedWaitTime and GetBattlefieldTimeWaited then
+        local est = (W.Safe(GetBattlefieldEstimatedWaitTime(queueId)) or 0) / 1000
+        local waited = (W.Safe(GetBattlefieldTimeWaited(queueId)) or 0) / 1000
+        local remain = est - waited
+        local a = active[key]
+        if remain > 1 and (not a or math.abs(remain - (a.ends - GetTime())) > 10) then -- not restarted for a 10 s drift
+            StartBar(key, mapName, remain, "queue", 134400)
+        elseif remain <= 1 then
+            StopBar(key)
+        end
+    elseif status == "none" or status == "active" then
+        StopBar(key)
+        if status == "active" then StopMatching("queue:") end
+    end
+end)
+
+---------------------------------------------------------------------------
+-- Zone
+---------------------------------------------------------------------------
 local function Zone()
     local id = db and db.enabled and InstanceID()
     local on = id and not (CAPPING_ZONES[id] and CappingLoaded())
     W.Activate(poiEv, on and true or false)
-    if anchor then StopAll() end
+    StopMatching("cap:")
+    StopMatching("flag")
+    if not InstanceID() then StopMatching("gates") end
     if not on then mapID = nil; return end
-    CreateAnchor()
+    capTime = ZONE_CAPTIME[id] or db.capTime or 60
     mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
     Snapshot()
 end
-W.On("PLAYER_ENTERING_WORLD", Zone)
+W.On("PLAYER_ENTERING_WORLD", function() if anchor then StopMatching("cap:") end; Zone() end)
 W.On("ZONE_CHANGED_NEW_AREA", Zone)
 
 ---------------------------------------------------------------------------
@@ -245,31 +351,40 @@ local function MapDump()
     W.TextPopup(L("Map points now"), table.concat(lines, "\n"), { hint = "Ctrl+C" })
 end
 
-W.RegisterModule("CapTimers", L("Capture timers"), function(p)
-    W.Title(p, L("Capture timers"))
-    W.Check(p, L("Show base capture timers in battlegrounds"), function() return db.enabled end,
+W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
+    W.Title(p, L("Battleground timers"))
+    W.Check(p, L("Base capture timers"), function() return db.enabled end,
         function(v) db.enabled = v; Zone() end):SetPoint("TOPLEFT", 12, -40)
-    W.Check(p, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -66)
-    W.Label(p, L("Capture time:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -102)
+    W.Check(p, L("Battle start and queue bars"), function() return db.queue end, function(v) db.queue = v end):SetPoint("TOPLEFT", 12, -64)
+    W.Check(p, L("Flag respawn after a capture"), function() return db.flag end, function(v) db.flag = v end):SetPoint("TOPLEFT", 12, -88)
+    W.Check(p, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -112)
+    W.Label(p, L("Capture time (other battlegrounds):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -148)
     local times = {}
-    for _, s in ipairs({ 30, 45, 60, 64, 90, 120, 240 }) do times[#times + 1] = { s, string.format(L("%d s"), s) } end
-    W.Cycle(p, 80, times, function() return db.capTime end, function(v) db.capTime = v end):SetPoint("TOPLEFT", 130, -97)
+    for _, s in ipairs({ 30, 45, 60, 64, 90, 120, 240, 300 }) do times[#times + 1] = { s, string.format(L("%d s"), s) } end
+    W.Cycle(p, 80, times, function() return db.capTime end, function(v) db.capTime = v end):SetPoint("TOPLEFT", 280, -143)
     W.Button(p, L("Test"), 110, 22, function()
-        CreateAnchor()
-        StartBar("Test Alliance", db.capTime or 60, "Alliance", 3)
-        StartBar("Test Horde", math.floor((db.capTime or 60) / 2), "Horde", 13)
-    end):SetPoint("TOPLEFT", 16, -130)
+        StartBar("test:a", "Test Alliance", 60, "Alliance", { poi = 3 }, "Alliance")
+        StartBar("test:h", "Test Horde", 30, "Horde", { poi = 13 }, "Horde")
+        StartBar("test:g", L("Battle begins"), 45, "other", 136106)
+        StartBar("test:f", L("Flag respawns"), FLAG_RESPAWN, "other", 134420)
+    end):SetPoint("TOPLEFT", 16, -178)
     W.Button(p, L("Reset position"), 160, 22, function()
         db.point = { "TOP", "TOP", 0, -150 }
         if anchor then Place() end
-    end):SetPoint("TOPLEFT", 132, -130)
-    W.Button(p, L("Map points now"), 200, 22, MapDump):SetPoint("TOPLEFT", 298, -130)
-    local info = W.Label(p, L("When a base is assaulted (its map icon turns contested), a bar counts down until it is taken. Arathi Basin and Alterac Valley are left to Capping when it is installed. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."),
+    end):SetPoint("TOPLEFT", 132, -178)
+    W.Button(p, L("Map points now"), 200, 22, MapDump):SetPoint("TOPLEFT", 298, -178)
+    local info = W.Label(p, L("A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."),
         "GameFontHighlightSmall")
-    info:SetPoint("TOPLEFT", 16, -170)
+    info:SetPoint("TOPLEFT", 16, -216)
     info:SetWidth(700)
     info:SetJustifyH("LEFT")
     info:SetTextColor(0.7, 0.7, 0.7)
+    local capping = W.Label(p, L("Capping is loaded: it keeps its queue, gates, flag and Arathi / Alterac bars, these are only for the other battlegrounds."),
+        "GameFontNormalSmall")
+    capping:SetPoint("TOPLEFT", 16, -270)
+    capping:SetWidth(700)
+    capping:SetJustifyH("LEFT")
+    p:HookScript("OnShow", function() capping:SetShown(CappingLoaded()) end)
 end)
 
 W.slash.caps = function() W.Toggle("CapTimers") end
