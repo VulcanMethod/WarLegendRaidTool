@@ -218,6 +218,8 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		self.TargetUnitID = targetUnitID
 		if self.PlayerIsEnemy then
 			self:UpdateRaidTargetIcon()
+		elseif self:GetAttribute("unit") ~= unitID and self.config then
+			self:SetBindings() -- an ally's unit changed (raid roster): the unit attribute follows (after combat if needed)
 		end
 		self:UpdateAll(unitID)
 		self:DispatchEvent("UnitIdUpdate", unitID)
@@ -512,7 +514,9 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 
 
 			local newAttributes = {
-				unit = not self.PlayerIsEnemy and self.unit or false,
+				-- WarLegend: the ally's unit (self.unitID): the frame then is a unit frame for the game, [@mouseover]
+				-- macros and the click spells (dispel) work on it. Was self.unit, a field nothing set.
+				unit = not self.PlayerIsEnemy and self.unitID or false,
 				type1 = false,
 				type2 = false,
 				type3 = false,
