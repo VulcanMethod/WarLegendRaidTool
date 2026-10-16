@@ -347,6 +347,27 @@ W.On("CHAT_MSG_BG_SYSTEM_HORDE", FlagMessage)
 W.On("CHAT_MSG_BG_SYSTEM_ALLIANCE", FlagMessage)
 W.On("CHAT_MSG_BG_SYSTEM_NEUTRAL", FlagMessage)
 
+-- the icon of a battleground's Mark of Honor, found by its name (English or French), for the queue bars
+local QUEUE_MARKS = {
+    { { "warsong", "chanteguerre" }, 20558 },
+    { { "arathi" }, 20559 },
+    { { "alterac" }, 20560 },
+    { { "darkspear", "sombrelance" }, 274895, "Interface\\Icons\\INV_Misc_Rune_14" }, -- wowhead.com/forever
+}
+local function QueueIcon(mapName, default)
+    local name = (mapName or ""):lower()
+    for _, m in ipairs(QUEUE_MARKS) do
+        for _, word in ipairs(m[1]) do
+            if name:find(word, 1, true) then
+                local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(m[2])
+                if not icon and GetItemIcon then icon = GetItemIcon(m[2]) end
+                return icon or m[3] or default
+            end
+        end
+    end
+    return default
+end
+
 W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
     queueId = W.Safe(queueId)
     if not Extras() or not db.queue or not queueId or not GetBattlefieldStatus then return end
@@ -355,14 +376,14 @@ W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
     local key = "queue:" .. queueId
     if status == "confirm" then -- the battleground popped: time left to enter
         local secs = GetBattlefieldPortExpiration and W.Safe(GetBattlefieldPortExpiration(queueId))
-        if type(secs) == "number" and secs > 0 then StartBar(key, mapName, secs, "other", 132327) end -- Ability_TownWatch
+        if type(secs) == "number" and secs > 0 then StartBar(key, mapName, secs, "other", QueueIcon(mapName, 132327)) end -- its mark, else Ability_TownWatch
     elseif status == "queued" and GetBattlefieldEstimatedWaitTime and GetBattlefieldTimeWaited then
         local est = (W.Safe(GetBattlefieldEstimatedWaitTime(queueId)) or 0) / 1000
         local waited = (W.Safe(GetBattlefieldTimeWaited(queueId)) or 0) / 1000
         local remain = est - waited
         local a = active[key]
         if remain > 1 and (not a or math.abs(remain - (a.ends - GetTime())) > 10) then -- not restarted for a 10 s drift
-            StartBar(key, mapName, remain, "queue", 134400)
+            StartBar(key, mapName, remain, "queue", QueueIcon(mapName, 134400))
         elseif remain <= 1 then
             StopBar(key)
         end
