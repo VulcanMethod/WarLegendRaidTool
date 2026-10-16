@@ -34,7 +34,8 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   when `/wl` opens, or when one of its addon messages arrives (prefixes listed in `lodPrefix`: a new prefix there too).
   In that addon `W.OnReady` runs after the whole file is loaded, `W.On` handlers for login / entering world are replayed once.
 - **Third addon**: `../WarLegendRaidTool_PvP` (battleground enemy / ally frames, BattleGroundEnemies cleaned up), loaded on
-  demand by `PvP.lua` (`W.LoadPvP`) in a battleground or when its tab opens.
+  demand by `PvP.lua` (`W.LoadPvP`) in a battleground or when its tab opens. `Modules/Dispel.lua` there: ally frames show what
+  MY class can dispel (border color) and give (buffs, greyed when missing); auras read secret-safe via `W.AuraByIndex`.
 - Guild-side modules of the main addon: `Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank,
   `/wl trials`), `GuildBank.lua` (stock of MY account's characters at the bank rank, read from `Alts.lua`, `/wl bank`),
   `BGStats.lua` (my guild premades, players, fastest wins per battleground, `/wl bg`). These three are **personal only:

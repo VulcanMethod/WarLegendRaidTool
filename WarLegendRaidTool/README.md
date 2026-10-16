@@ -3,7 +3,7 @@
 Addon WoW **Forever** (interface 16001) de la guilde **War Legend** : groupes de raid, loot council (avec le
 nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'auras, CD de raid, préparation, présences,
 rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
-export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP, chrono de cimetière (style Capping),
+export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations et buffs de ta classe sur les alliés), chrono de cimetière (style Capping),
 historique et records des premades de BG, liste de summon.
 Commande : `/wl` (`/wl help` affiche toutes les commandes). Langues : français / anglais.
 
@@ -84,5 +84,6 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
 | `/wl pvp` | Réglages des cadres PvP. |
 | `/wl pvpcheck` | Vérifie si les restrictions d'addons sont actives dans ce champ de bataille. |
+| `/wl bgmsg` | Derniers messages du champ de bataille, à copier (pour ajouter les textes de drapeau d'un nouveau BG). |
 
 Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarLegendRaidTool.toc`.

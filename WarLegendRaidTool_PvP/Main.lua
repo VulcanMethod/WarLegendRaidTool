@@ -281,7 +281,7 @@ local GENERAL_KEYS = { "Style", "Locked", "EnableMouseWheelPlayerTargeting", "Sh
 
 -- modules the /wl tab can switch on / off (name, health bar and spec / class icon always shown)
 WarLegendPvP.ToggleableModules = { "Level", "Power", "CastBar", "Role", "RaidTargetIcon", "TargetIndicatorNumeric",
-	"TargetIndicatorSymbolic", "CombatIndicator", "ObjectiveAndRespawn" }
+	"TargetIndicatorSymbolic", "CombatIndicator", "ObjectiveAndRespawn", "Dispel" }
 
 local function savedSide(side)
 	local saved = WarLegendRaidTool_PvPDB
@@ -764,6 +764,7 @@ WarLegendPvP.GeneralEvents = {
 	"UNIT_POWER_FREQUENT",
 	"CHAT_MSG_BG_SYSTEM_HORDE",
 	"CHAT_MSG_BG_SYSTEM_ALLIANCE",
+	"CHAT_MSG_BG_SYSTEM_NEUTRAL",
 	"PLAYER_REGEN_ENABLED",
 	"PLAYER_REGEN_DISABLED"
 }
@@ -826,7 +827,12 @@ local function ApplyFontStringSettings(fs, settings, isCooldown)
 	local fontPath, styleOutline, styleShadow = WarLegendPvP:GetFont()
 	local outline = configTable.FontOutline
 	if outline == nil or outline == "" then outline = styleOutline end
-	fs:SetFont(fontPath, configTable.FontSize, outline)
+	-- through WarLegend's font family: Cyrillic / Asian names keep their letters (no squares)
+	if WLRT and WLRT.SetFont then
+		WLRT.SetFont(fs, fontPath, configTable.FontSize, outline)
+	else
+		fs:SetFont(fontPath, configTable.FontSize, outline)
+	end
 	configTable.EnableShadow = configTable.EnableShadow or styleShadow
 
 
@@ -1292,11 +1298,48 @@ local function disableRaidFrames()
 	if previousCvarRaidOptionIsShown == nil then
 		previousCvarRaidOptionIsShown =  GetCVar("raidOptionIsShown")
 	end
-	SetCVar("raidOptionIsShown", false)
+	SetCVar("raidOptionIsShown", "0")
+end
+
+-- EllesmereUI's raid / party frames ignore that CVar, and their containers carry secure visibility drivers
+-- (they show themselves again every 0.2 s): out of combat they are moved under a parent of ours, hidden in
+-- battlegrounds and shown again outside. Container names from EllesmereUIRaidFrames (EUI_RaidFrames_Layout.lua,
+-- EUI_RaidFrames_Party.lua).
+local raidFrameHider
+local function eurContainers()
+	local list = {}
+	if _G.EllesmereUIRaidFrameContainer then list[#list + 1] = _G.EllesmereUIRaidFrameContainer end
+	local party = _G.ERFPartyHeader and _G.ERFPartyHeader:GetParent()
+	if party and party ~= UIParent then list[#list + 1] = party end
+	return list
+end
+
+local function setEllesmereRaidFramesHidden(hide)
+	if hide then
+		if not raidFrameHider then
+			raidFrameHider = CreateFrame("Frame", nil, UIParent)
+			raidFrameHider:SetAllPoints(UIParent)
+		end
+		for _, container in ipairs(eurContainers()) do
+			if container:GetParent() == UIParent then container:SetParent(raidFrameHider) end
+		end
+		raidFrameHider:Hide()
+	elseif raidFrameHider then
+		raidFrameHider:Show()
+		for _, container in ipairs(eurContainers()) do
+			if container:GetParent() == raidFrameHider then container:SetParent(UIParent) end
+		end
+	end
 end
 
 function WarLegendPvP:ToggleRaidFrames()
-	if WarLegendPvP.states.real.isInBattleground and self.db.profile.DisableRaidFramesInBattleground then return disableRaidFrames() end
+	local hide = WarLegendPvP.states.real.isInBattleground and self.db.profile.DisableRaidFramesInBattleground
+	if InCombatLockdown() then
+		-- moving secure frames is refused in combat: done when it ends
+		return self:QueueForUpdateAfterCombat(self, "ToggleRaidFrames")
+	end
+	setEllesmereRaidFramesHidden(hide and true or false)
+	if hide then return disableRaidFrames() end
 
 	restoreShowRaidFrameCVar()
 end

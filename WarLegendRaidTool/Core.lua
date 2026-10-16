@@ -21,6 +21,40 @@ W.ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
 W.BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 
+-- A font string given a font file with SetFont shows squares for letters that file lacks (Cyrillic names
+-- on a French client...). Blizzard's own fonts are font families: one file per alphabet. W.SetFont makes
+-- the same (CreateFontFamily, one per file / size / flags) with Blizzard's Cyrillic, Korean and Chinese
+-- files as the other members; plain SetFont when the client has no CreateFontFamily.
+local FONT_ALPHABETS = {
+    { "russian", "Fonts\\FRIZQT___CYR.TTF" },
+    { "korean", "Fonts\\2002.TTF" },
+    { "simplifiedchinese", "Fonts\\ARKai_T.ttf" },
+    { "traditionalchinese", "Fonts\\blei00d.TTF" },
+}
+local fontFamilies, fontFamilyCount = {}, 0
+function W.SetFont(fs, path, size, flags)
+    flags = flags or ""
+    if CreateFontFamily then
+        local key = path .. "|" .. size .. "|" .. flags
+        local family = fontFamilies[key]
+        if family == nil then
+            fontFamilyCount = fontFamilyCount + 1
+            local members = { { alphabet = "roman", file = path, height = size, flags = flags } }
+            for _, a in ipairs(FONT_ALPHABETS) do
+                members[#members + 1] = { alphabet = a[1], file = a[2], height = size, flags = flags }
+            end
+            local ok, f = pcall(CreateFontFamily, "WLRTFontFamily" .. fontFamilyCount, members)
+            family = ok and f or false
+            fontFamilies[key] = family
+        end
+        if family then
+            fs:SetFontObject(family)
+            return
+        end
+    end
+    fs:SetFont(path, size, flags)
+end
+
 function W.Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|T" .. W.LOGO_SMALL .. ":14:14|t " .. W.TAG .. tostring(msg))
 end
@@ -1735,6 +1769,7 @@ W.AddFR({
     ["PvP frames settings"] = "réglages des cadres PvP",
     ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
     ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
+    ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
     ["stock of my bank characters"] = "stock de mes persos banque",
     ["my premade history and records"] = "historique et records de mes premades",
 })
@@ -1765,6 +1800,7 @@ local HELP = {
     { "/wl gy", "graveyard timer test (fake waves)" },
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
+    { "/wl bgmsg", "last battleground messages (to copy)" },
 }
 W.slash.help = function()
     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))

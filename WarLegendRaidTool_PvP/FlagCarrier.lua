@@ -6,7 +6,7 @@ local Data = select(2, ...)
 ---@class WarLegendPvP
 local WarLegendPvP = WarLegendPvP
 
--- WoW Forever: flag carriers in Warsong Gulch.
+-- WoW Forever: flag carriers in Warsong Gulch (and any battleground using the same flag messages).
 -- Retail showed the flag carriers as arena1 / arena2 units, Forever has no arena units, so (like
 -- BattlegroundTargets) the carriers are read from the battleground messages:
 --   "The Alliance flag was picked up by X!", "... was dropped by X!", "X captured the Horde flag!"
@@ -170,4 +170,10 @@ end
 
 function WarLegendPvP:CHAT_MSG_BG_SYSTEM_ALLIANCE(message)
 	self:HandleBattlegroundMessage(message, "Alliance")
+end
+
+-- battlegrounds that announce their flag in the neutral color (WoW Forever's Darkspear Island...):
+-- no faction, the carrier is looked for in both teams
+function WarLegendPvP:CHAT_MSG_BG_SYSTEM_NEUTRAL(message)
+	self:HandleBattlegroundMessage(message, nil)
 end

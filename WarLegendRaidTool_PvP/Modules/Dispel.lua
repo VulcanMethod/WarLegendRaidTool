@@ -1,0 +1,294 @@
+
+---@class WarLegendPvP
+local WarLegendPvP = WarLegendPvP
+---@type string
+local AddonName = ...
+---@class Data
+local Data = select(2, ...)
+
+-- WarLegend: on the ally frames, what I can do for each player with my class.
+--  * a debuff I can dispel: the frame border takes the dispel type color, and the debuff icon is shown
+--    (filter "HARMFUL|RAID" = debuffs the player can remove; checked again with my class when readable)
+--  * the buffs of my class (Fortitude, Mark of the Wild, Arcane Intellect, Blessings...): the icon is shown
+--    when the player has it, greyed when it is missing (only for the long buffs, and Intellect / Spirit
+--    only on mana users)
+-- WoW Forever can keep auras secret in a battleground: an aura the client refuses is never read (no icon,
+-- "?" for a dispellable one), and a missing buff is only shown when every buff of the player was readable.
+
+local W = WLRT
+W.AddFR({
+	["Dispels and my buffs (allies)"] = "Dissipations et mes buffs (alliés)",
+})
+
+local CreateFrame = CreateFrame
+local GetTime = GetTime
+
+local defaultSettings = {
+	Enabled = true,
+	Parent = "Button",
+	UseButtonHeightAsHeight = true,
+	Width = 1,
+	ActivePoints = 1,
+	Points = {
+		{
+			Point = "LEFT",
+			RelativeFrame = "Button",
+			RelativePoint = "RIGHT",
+			OffsetX = 2
+		}
+	}
+}
+
+local dispel = WarLegendPvP:NewButtonModule({
+	moduleName = "Dispel",
+	localizedModuleName = W.L("Dispels and my buffs (allies)"),
+	defaultSettings = defaultSettings,
+	events = { "UnitIdUpdate", "PlayerButtonSizeChanged", "OnTestmodeEnabled", "OnTestmodeDisabled", "OnTestmodeTick" },
+	enabledInThisExpansion = true,
+	attachSettingsToButton = true
+})
+
+---------------------------------------------------------------------------
+-- My class
+---------------------------------------------------------------------------
+-- dispel types each class removes (Classic spells; a warlock needs his Felhunter, the filter knows it)
+local CLASS_DISPELS = {
+	PRIEST = { Magic = true, Disease = true },
+	PALADIN = { Magic = true, Poison = true, Disease = true },
+	DRUID = { Curse = true, Poison = true },
+	MAGE = { Curse = true },
+	SHAMAN = { Poison = true, Disease = true },
+	WARLOCK = { Magic = true },
+}
+
+-- buffs each class gives: spell IDs of one buff family (single and group versions), missing = show it greyed
+-- when the player does not have it, mana = only on mana users
+local CLASS_BUFFS = {
+	PRIEST = {
+		{ ids = { 1243, 21562 }, missing = true },               -- Power Word / Prayer of Fortitude
+		{ ids = { 14752, 27681 }, missing = true, mana = true }, -- Divine Spirit / Prayer of Spirit
+		{ ids = { 976, 27683 } },                                -- Shadow Protection / Prayer of Shadow Protection
+		{ ids = { 6346 } },                                      -- Fear Ward
+	},
+	MAGE = {
+		{ ids = { 1459, 23028 }, missing = true, mana = true },  -- Arcane Intellect / Arcane Brilliance
+	},
+	DRUID = {
+		{ ids = { 1126, 21849 }, missing = true },               -- Mark / Gift of the Wild
+		{ ids = { 467 } },                                       -- Thorns
+	},
+	PALADIN = {
+		{ ids = { 19740, 25782 } }, -- Blessing of Might / Greater
+		{ ids = { 19742, 25894 } }, -- Wisdom
+		{ ids = { 20217, 25898 } }, -- Kings
+		{ ids = { 1038, 25895 } },  -- Salvation
+		{ ids = { 19977, 25890 } }, -- Light
+		{ ids = { 20911, 25899 } }, -- Sanctuary
+	},
+}
+
+local DISPEL_COLOR = {
+	Magic = { 0.2, 0.6, 1 },
+	Curse = { 0.6, 0, 1 },
+	Disease = { 0.6, 0.4, 0 },
+	Poison = { 0, 0.6, 0 },
+	Unknown = { 1, 0.5, 0 }, -- dispellable, but its type is kept secret
+}
+
+local function SpellIcon(id)
+	if C_Spell and C_Spell.GetSpellTexture then return C_Spell.GetSpellTexture(id) end
+	return GetSpellTexture and GetSpellTexture(id)
+end
+
+local function Knows(id)
+	if IsPlayerSpell then return IsPlayerSpell(id) end
+	if IsSpellKnown then return IsSpellKnown(id) end
+	return true
+end
+
+-- my buff families, built once: { names = { [name] = true }, icon, missing, mana }
+local myBuffs, myDispels
+local function MyClass()
+	if myBuffs then return myBuffs, myDispels end
+	local class = W.UnitClassToken("player")
+	myDispels = CLASS_DISPELS[class] or {}
+	myBuffs = {}
+	for _, fam in ipairs(CLASS_BUFFS[class] or {}) do
+		local names, known = {}, false
+		for _, id in ipairs(fam.ids) do
+			local n = W.SpellName(id)
+			if n then names[n] = true end
+			if Knows(id) then known = true end
+		end
+		if known and next(names) then
+			myBuffs[#myBuffs + 1] = { names = names, icon = SpellIcon(fam.ids[1]) or 134400, missing = fam.missing, mana = fam.mana }
+		end
+	end
+	return myBuffs, myDispels
+end
+
+---------------------------------------------------------------------------
+-- Reading one unit (secret-safe: W.AuraByIndex gives false for an aura the client refuses)
+---------------------------------------------------------------------------
+local MAX_DEBUFFS = 4
+
+local function ReadUnit(unit)
+	local buffs, dispels = MyClass()
+	local debuffs, border = {}, nil
+	for i = 1, 40 do
+		local a = W.AuraByIndex(unit, i, "HARMFUL|RAID")
+		if a == nil then break end
+		local icon, dtype
+		if a then icon, dtype = W.Safe(a.icon), W.Safe(a.dispelName) end
+		if not dtype or dispels[dtype] then -- unreadable type: the filter said I can remove it
+			local color = DISPEL_COLOR[dtype or "Unknown"] or DISPEL_COLOR.Unknown
+			border = border or color
+			if #debuffs < MAX_DEBUFFS then debuffs[#debuffs + 1] = { icon = icon or 134400, color = color } end
+		end
+	end
+	local have, allReadable = {}, true
+	if #buffs > 0 then
+		for i = 1, 40 do
+			local a = W.AuraByIndex(unit, i, "HELPFUL")
+			if a == nil then break end
+			local name = a and W.Safe(a.name)
+			if not name then
+				allReadable = false
+			else
+				for f, fam in ipairs(buffs) do
+					if fam.names[name] then have[f] = true end
+				end
+			end
+		end
+	end
+	local power = W.Safe(UnitPowerType(unit))
+	local shown = {}
+	for f, fam in ipairs(buffs) do
+		if have[f] then
+			shown[#shown + 1] = { icon = fam.icon }
+		elseif fam.missing and allReadable and not (fam.mana and power ~= 0) then
+			shown[#shown + 1] = { icon = fam.icon, grey = true }
+		end
+	end
+	return debuffs, shown, border
+end
+
+---------------------------------------------------------------------------
+-- Frames on each ally button
+---------------------------------------------------------------------------
+function dispel:AttachToPlayerButton(playerButton)
+	local f = CreateFrame("Frame", nil, playerButton)
+	f.icons = {}
+	playerButton.Dispel = f
+
+	-- border around the whole button, in the dispel color
+	local glow = CreateFrame("Frame", nil, playerButton, BackdropTemplateMixin and "BackdropTemplate")
+	glow:SetPoint("TOPLEFT", playerButton, "TOPLEFT", -2, 2)
+	glow:SetPoint("BOTTOMRIGHT", playerButton, "BOTTOMRIGHT", 2, -2)
+	glow:SetFrameLevel(playerButton:GetFrameLevel() + 10)
+	glow:SetBackdrop({ edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 2 })
+	glow:Hide()
+	f.glow = glow
+
+	local function Icon(i)
+		local b = f.icons[i]
+		if b then return b end
+		b = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate")
+		b:SetBackdrop({ edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+		b.tex = b:CreateTexture(nil, "ARTWORK")
+		b.tex:SetPoint("TOPLEFT", 1, -1)
+		b.tex:SetPoint("BOTTOMRIGHT", -1, 1)
+		b.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+		f.icons[i] = b
+		return b
+	end
+
+	function f:Show_(debuffs, buffs, border)
+		local size = math.max(10, (playerButton:GetHeight() or 20) - 4)
+		local n = 0
+		local function put(e, r, g, b, grey)
+			n = n + 1
+			local ic = Icon(n)
+			ic:SetSize(size, size)
+			ic:ClearAllPoints()
+			ic:SetPoint("LEFT", f, "LEFT", (n - 1) * (size + 2), 0)
+			ic.tex:SetTexture(e.icon)
+			ic.tex:SetDesaturated(grey and true or false)
+			ic:SetAlpha(grey and 0.45 or 1)
+			ic:SetBackdropBorderColor(r, g, b, 1)
+			ic:Show()
+		end
+		for _, d in ipairs(debuffs) do put(d, d.color[1], d.color[2], d.color[3]) end
+		for _, b in ipairs(buffs) do put(b, 0, 0, 0, b.grey) end
+		for i = n + 1, #f.icons do f.icons[i]:Hide() end
+		self:SetWidth(math.max(1, n * (size + 2)))
+		if border then
+			glow:SetBackdropBorderColor(border[1], border[2], border[3], 1)
+			glow:Show()
+		else
+			glow:Hide()
+		end
+	end
+
+	function f:Clear()
+		for i = 1, #f.icons do f.icons[i]:Hide() end
+		glow:Hide()
+	end
+
+	function f:Update()
+		self.pending = false
+		if not self.Enabled or playerButton.PlayerIsEnemy or self.testmode then return end
+		local unit = playerButton:GetUnitID()
+		if not unit or not UnitExists(unit) then return self:Clear() end
+		local ok, debuffs, buffs, border = pcall(ReadUnit, unit)
+		if not ok then return self:Clear() end
+		self:Show_(debuffs, buffs, border)
+	end
+
+	-- UNIT_AURA can fire many times in a row: one read per button every 0.2 s at most
+	function f:Schedule()
+		if self.pending then return end
+		self.pending = true
+		C_Timer.After(0.2, function() f:Update() end)
+	end
+
+	function f:UnitIdUpdate() self:Schedule() end
+	function f:PlayerButtonSizeChanged() self:Schedule() end
+
+	function f:OnTestmodeEnabled() self.testmode = true end
+	function f:OnTestmodeDisabled() self.testmode = false; self:Clear() end
+	function f:OnTestmodeTick()
+		self.testmode = true
+		if playerButton.PlayerIsEnemy then return end
+		local buffs = MyClass()
+		local shown = {}
+		for _, fam in ipairs(buffs) do shown[#shown + 1] = { icon = fam.icon, grey = math.random(1, 2) == 1 } end
+		if math.random(1, 3) == 1 then
+			local types = { "Magic", "Curse", "Disease", "Poison" }
+			local c = DISPEL_COLOR[types[math.random(1, 4)]]
+			self:Show_({ { icon = 136118, color = c } }, shown, c)
+		else
+			self:Show_({}, shown, nil)
+		end
+	end
+
+	function f:Disable() self:Clear() end
+
+	function f:ApplyAllSettings()
+		if not self.config then return end
+		if playerButton.PlayerIsEnemy then self:Clear(); return end
+		self:Schedule()
+	end
+
+	return f
+end
+
+-- one listener for every ally button
+local auraFrame = CreateFrame("Frame")
+auraFrame:RegisterEvent("UNIT_AURA")
+auraFrame:SetScript("OnEvent", function(_, _, unit)
+	if type(unit) ~= "string" or not (unit:find("^raid%d") or unit:find("^party%d") or unit == "player") then return end
+	if not WarLegendPvP.states or not WarLegendPvP.states.real or not WarLegendPvP.states.real.isInBattleground then return end
+	local ok, btn = pcall(WarLegendPvP.GetPlayerbuttonByUnitID, WarLegendPvP, unit)
+	if ok and btn and not btn.PlayerIsEnemy and btn.Dispel and btn.Dispel.Enabled then btn.Dispel:Schedule() end
+end)
