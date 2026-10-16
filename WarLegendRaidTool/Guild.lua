@@ -35,6 +35,10 @@ W.AddFR({
     ["<{guild}> is recruiting for its raids! All classes welcome, friendly and motivated. Whisper {me} for info."] =
         "<{guild}> recrute pour ses raids ! Toutes classes bienvenues, ambiance sympa et motivée. /w {me} pour infos.",
     ["Not in a guild."] = "Pas dans une guilde.",
+    ["No profession link from %s yet: he must open his profession once with the addon."] =
+        "Pas encore de lien de métier de %s : il doit ouvrir son métier une fois avec l'addon.",
+    ["Click: open his profession. Shift-click: link it in the chat."] =
+        "Clic : ouvrir son métier. Maj-clic : le lier dans le chat.",
 })
 local L = W.L
 
@@ -175,11 +179,20 @@ local function ScanRecipes()
     table.sort(ids)
     local me = MyEntry()
     local list = table.concat(ids, ",")
-    local old = me.rec[prof]
+    local changed = me.rec[prof] ~= list
     me.rec[prof] = list -- compact text: a few KB per member instead of a table of numbers
+    -- the profession link (as a shift-click on the profession): the others open my recipe list with it
+    if C_TradeSkillUI.GetTradeSkillListLink then
+        local ok, link = pcall(C_TradeSkillUI.GetTradeSkillListLink)
+        link = ok and W.Safe(link)
+        if type(link) == "string" and link:find("|Htrade:", 1, true) then
+            me.links = me.links or {}
+            if me.links[prof] ~= link then me.links[prof] = link; changed = true end
+        end
+    end
     me.profs = OwnProfessions()
     me.t = time()
-    if old ~= list then G.Broadcast() end
+    if changed then G.Broadcast() end
     return true
 end
 
@@ -208,7 +221,10 @@ local function Encode(e)
     for _, x in ipairs(e.profs or {}) do p[#p + 1] = x.n .. ":" .. x.r .. ":" .. x.m end
     local r = {}
     for prof, ids in pairs(e.rec or {}) do r[#r + 1] = prof .. "=" .. (type(ids) == "table" and table.concat(ids, ",") or ids) end
-    return W.Pack("D", table.concat(p, ";"), table.concat(r, ";"))
+    -- profession links: "prof \31 link" separated by \30 (a link holds ":" ";" and "=")
+    local l = {}
+    for prof, link in pairs(e.links or {}) do l[#l + 1] = prof .. "\31" .. link end
+    return W.Pack("D", table.concat(p, ";"), table.concat(r, ";"), table.concat(l, "\30"))
 end
 
 function G.Broadcast()
@@ -235,10 +251,13 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
         answering = true
         W.After(2 + math.random() * 10, function() answering = false; G.Broadcast() end)
     elseif t[1] == "D" then
-        local e = { t = time(), profs = {}, rec = {} }
+        local e = { t = time(), profs = {}, rec = {}, links = {} }
         for n, r, m in (t[2] or ""):gmatch("([^:;]+):(%d+):(%d+)") do e.profs[#e.profs + 1] = { n = n, r = tonumber(r), m = tonumber(m) } end
         for prof, list in (t[3] or ""):gmatch("([^=;]+)=([%d,]+)") do
             if #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
+        end
+        for prof, link in (t[4] or ""):gmatch("([^\30\31]+)\31([^\30]+)") do
+            if #prof <= 40 and #link <= 4000 and link:find("|Htrade:", 1, true) then e.links[prof] = link end
         end
         Data()[from] = e
         G.RefreshProfs()
@@ -360,12 +379,13 @@ function G.RefreshProfs()
             local e = d[n]
             local parts, keep = {}, filter == ""
             for _, x in ipairs(e.profs or {}) do
-                parts[#parts + 1] = x.n .. " " .. x.r .. (x.m > 0 and ("/" .. x.m) or "")
+                -- the skill alone ("Alchemy 150"), nothing once it reaches 300 (the max)
+                parts[#parts + 1] = x.n .. (((x.r or 0) < 300) and (" " .. x.r) or "")
                 if x.n == filter then keep = true end
             end
             if keep then
                 local g = W.GuildInfo(n)
-                rows[#rows + 1] = { cells = { (Online(n) and "|cff33ff66*|r " or "  ") .. W.ColorName(n, g and g.class), table.concat(parts, ", "), W.Ago(e.t) } }
+                rows[#rows + 1] = { member = n, cells = { (Online(n) and "|cff33ff66*|r " or "  ") .. W.ColorName(n, g and g.class), table.concat(parts, ", "), W.Ago(e.t) } }
             end
         end
         UI.profHead1:SetText(L("Name")); UI.profHead2:SetText(L("Professions"))
@@ -379,6 +399,7 @@ function G.RefreshProfs()
                         id = tonumber(id)
                         if RecipeLower(id):find(search, 1, true) then
                             by[id] = by[id] or {}
+                            by[id].prof = prof
                             table.insert(by[id], n)
                         end
                     end
@@ -396,7 +417,8 @@ function G.RefreshProfs()
                 return a < b
             end)
             for _, n in ipairs(by[id]) do names[#names + 1] = Online(n) and ("|cff33ff66" .. n .. "|r") or ("|cff999999" .. n .. "|r") end
-            rows[#rows + 1] = { cells = { RecipeName(id), table.concat(names, ", "), "" } }
+            -- a click opens this profession of the first crafter (online ones first)
+            rows[#rows + 1] = { member = by[id][1], prof = by[id].prof, cells = { RecipeName(id), table.concat(names, ", "), "" } }
             if #rows >= 300 then break end
         end
         UI.profHead1:SetText(L("Recipe")); UI.profHead2:SetText(L("Crafters"))
@@ -413,6 +435,66 @@ local function ProfFilterValues()
     end
     table.sort(vals, function(a, b) if a[1] == "" then return true elseif b[1] == "" then return false end return a[1] < b[1] end)
     return vals
+end
+
+---------------------------------------------------------------------------
+-- A member's profession, as a shift-click on a profession link in the chat: click = open it (the game's
+-- profession window shows his recipes), shift-click = put the link in the chat box.
+---------------------------------------------------------------------------
+local function OpenProfessionLink(link)
+    if IsShiftKeyDown() and ChatEdit_InsertLink then
+        ChatEdit_InsertLink(link)
+        return
+    end
+    local ref = link:match("|H(.-)|h")
+    if ref and SetItemRef then pcall(SetItemRef, ref, link, "LeftButton") end
+end
+
+local linkMenu
+local function MemberLinks(member, onlyProf)
+    local e = member and Data()[member]
+    local list = {}
+    for prof, link in pairs(e and e.links or {}) do
+        if not onlyProf or prof == onlyProf then list[#list + 1] = { prof, link } end
+    end
+    table.sort(list, function(a, b) return a[1] < b[1] end)
+    return list
+end
+
+local function ShowMemberLinks(member, onlyProf)
+    local list = MemberLinks(member, onlyProf)
+    if #list == 0 then
+        W.Print(string.format(L("No profession link from %s yet: he must open his profession once with the addon."), member or "?"))
+        return
+    end
+    if #list == 1 then OpenProfessionLink(list[1][2]); return end
+    -- several professions: a small menu at the cursor
+    if not linkMenu then
+        linkMenu = CreateFrame("Frame", "WLRTProfessionLinkMenu", UIParent, W.BT)
+        linkMenu:SetFrameStrata("DIALOG")
+        W.Backdrop(linkMenu, 0.97)
+        linkMenu.buttons = {}
+        tinsert(UISpecialFrames, "WLRTProfessionLinkMenu")
+    end
+    for i, entry in ipairs(list) do
+        local b = linkMenu.buttons[i]
+        if not b then
+            b = W.Button(linkMenu, "", 170, 20)
+            b:SetPoint("TOPLEFT", 6, -6 - (i - 1) * 22)
+            linkMenu.buttons[i] = b
+        end
+        b:SetText(entry[1])
+        b:SetScript("OnClick", function() linkMenu:Hide(); OpenProfessionLink(entry[2]) end)
+        b:Show()
+    end
+    for i = #list + 1, #linkMenu.buttons do linkMenu.buttons[i]:Hide() end
+    W.Size(linkMenu, 182, 12 + #list * 22)
+    local x, y = GetCursorPosition()
+    local s = UIParent:GetEffectiveScale()
+    linkMenu:ClearAllPoints()
+    linkMenu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / s, y / s)
+    linkMenu:Show()
+    W.After(8, function() if linkMenu then linkMenu:Hide() end end)
 end
 
 local function BuildProfs(p)
@@ -436,6 +518,14 @@ local function BuildProfs(p)
     W.Button(p, L("Ask the guild"), 130, 22, function() G.Ask(); G.Broadcast() end):SetPoint("TOPRIGHT", -16, -6)
     UI.profs = W.Table(p, { { L("Name"), 200 }, { L("Professions"), 480 }, { L("Updated"), 70, "CENTER" } }, 420)
     UI.profs:SetPoint("TOPLEFT", 10, -40)
+    UI.profs.onClick = function(d) if d.member then ShowMemberLinks(d.member, d.prof) end end
+    UI.profs.onEnter = function(d, row)
+        if not d.member then return end
+        GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(d.member, 1, 1, 1)
+        GameTooltip:AddLine(L("Click: open his profession. Shift-click: link it in the chat."), 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end
     -- the table headers change with the mode
     UI.profHead1, UI.profHead2 = UI.profs.heads[1], UI.profs.heads[2]
     local h1 = W.Label(p, L("Open each of your professions once so the addon can read your recipes."), "GameFontDisableSmall")
