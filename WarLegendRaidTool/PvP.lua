@@ -25,6 +25,7 @@ W.AddFR({
     ["Click: choose the color of every bar of this side (\"One color\")."] =
         "Clic : choisir la couleur de toutes les barres de ce côté (« Couleur unique »).",
     ["Name in the class color"] = "Nom en couleur de classe",
+    ["Border"] = "Bordure",
     ["Shadow"] = "Ombre",
     ["Outline"] = "Contour",
     ["Thick outline"] = "Contour épais",
@@ -305,6 +306,9 @@ local function BuildSide(f, pvp, side)
     W.Tooltip(swatch, L("Bar color:"), { L("Click: choose the color of every bar of this side (\"One color\").") })
     W.Check(f, L("Name in the class color"), function() return pvp:GetSideSetting(side, "NameClassColor") end,
         function(v) pvp:SetSideSetting(side, "NameClassColor", v) end):SetPoint("TOPLEFT", 236, -110)
+    -- the 1 px black frame around each player (by default: as the style)
+    W.Check(f, L("Border"), function() return pvp:GetSideSetting(side, "Border") end,
+        function(v) pvp:SetSideSetting(side, "Border", v) end):SetPoint("TOPLEFT", 430, -110)
 
     W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -142)
     for i, moduleName in ipairs(pvp.ToggleableModules) do

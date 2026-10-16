@@ -306,6 +306,8 @@ function WarLegendPvP:BuildProfile()
 		sideConfig.BarColorMode = s.BarColorMode == "custom" and "custom" or "class"
 		sideConfig.BarColor = type(s.BarColor) == "table" and s.BarColor or nil
 		sideConfig.NameClassColor = s.NameClassColor and true or false
+		-- the 1 px frame: nil = as the style has it, true / false = always / never
+		if type(s.Border) == "boolean" then sideConfig.Border = s.Border else sideConfig.Border = nil end
 		-- WarLegend: out of range distance and grey (PlayerButton.lua ApplyRangeDesaturation)
 		if type(s.Range) == "number" then
 			sideConfig.RangeIndicator_Range_InCombat = s.Range
@@ -388,6 +390,9 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return type(s.BarColor) == "table" and s.BarColor or { 0.25, 0.25, 0.25 }
 	elseif key == "NameClassColor" then
 		return s.NameClassColor and true or false
+	elseif key == "Border" then
+		if type(s.Border) == "boolean" then return s.Border end
+		return self:StyleHasBorder(side)
 	elseif key == "RangeDesat" then
 		return s.RangeDesat and true or false
 	elseif key == "Range" then
@@ -578,6 +583,8 @@ function WarLegendPvP:GetBarColor(playerButton)
 end
 
 function WarLegendPvP:StyleHasBorder(side)
+	local p = self.db and self.db.profile
+	if side and p and p[side] and type(p[side].Border) == "boolean" then return p[side].Border end -- the side's choice
 	return STYLES[self:GetStyle(side)].border and true or false
 end
 
