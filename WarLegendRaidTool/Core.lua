@@ -1046,11 +1046,22 @@ function W.Button(parent, text, w, h, onClick, tip)
     end
     if onClick then b:SetScript("OnClick", onClick) end
     if tip then W.Tooltip(b, text, tip) end
+    Index(text, b)
     return b
+end
+
+-- Search index (/wl search box): the texts of the widgets a module panel is made of, while it is built
+local indexOff = false
+local function Index(text, widget)
+    local m = W.building
+    if not m or indexOff or type(text) ~= "string" or text == "" then return end
+    m.index = m.index or {}
+    m.index[#m.index + 1] = { text = text, widget = widget }
 end
 
 function W.Label(parent, text, font)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
+    Index(text, fs)
     fs:SetText(text or "")
     fs:SetJustifyH("LEFT")
     local S = W.Skin()
@@ -1093,7 +1104,10 @@ end
 function W.Check(parent, text, get, set, tip)
     local c = CreateFrame("CheckButton", W.N("Check"), parent, "UICheckButtonTemplate")
     W.Size(c, 24, 24)
+    Index(text, c)
+    indexOff = true -- its label is the same text
     local fs = W.Label(c, text, "GameFontHighlightSmall")
+    indexOff = false
     fs:SetPoint("LEFT", c, "RIGHT", 2, 1)
     c.label = fs
     c:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
@@ -1360,6 +1374,22 @@ local function Locate(m, catKey, secKey)
     end
 end
 
+-- A module's panel, built once (hidden), its widget texts indexed for the search box
+function W.EnsurePanel(m)
+    if m.panel then return m.panel end
+    m.panel = CreateFrame("Frame", nil, main.content)
+    m.panel:SetAllPoints()
+    -- built hidden: the Show of W.Select then runs every OnShow (check boxes, edit boxes and lists read
+    -- their saved values there). Built while shown, a tab opened its first time after a /reload
+    -- with every box unchecked and every text field empty.
+    m.panel:Hide()
+    W.building = m
+    local ok, err = pcall(m.build, m.panel)
+    W.building = nil
+    if not ok then geterrorhandler()(err) end
+    return m.panel
+end
+
 -- fromSection / fromCategory: where the clicked entry is (keeps it open)
 function W.Select(key, fromSection, fromCategory)
     local m = byKey[key] or W.modules[1]
@@ -1368,15 +1398,7 @@ function W.Select(key, fromSection, fromCategory)
         if other.panel then other.panel:Hide() end
         for _, b in ipairs(other.buttons or {}) do b.sel:Hide(); b.text:SetTextColor(unpack(main.textColor)) end
     end
-    if not m.panel then
-        m.panel = CreateFrame("Frame", nil, main.content)
-        m.panel:SetAllPoints()
-        -- built hidden: the Show below then runs every OnShow (check boxes, edit boxes and lists read
-        -- their saved values there). Built while shown, a tab opened its first time after a /reload
-        -- with every box unchecked and every text field empty.
-        m.panel:Hide()
-        m.build(m.panel)
-    end
+    W.EnsurePanel(m)
     m.panel:Show()
     for _, b in ipairs(m.buttons or {}) do b.sel:Show(); b.text:SetTextColor(1, 1, 1) end
     local ui = W.DB("ui")
@@ -1472,6 +1494,58 @@ function W.BuildMain()
             or "Reload the interface to switch the addon to English?")
     end, { L("Language of the addon: French / English (needs a reload).") })
     langBtn:SetPoint("RIGHT", styleBtn, "LEFT", -6, 0)
+
+    -- search box: a tool or an option (any check box, button or text of the tabs), results under it
+    local search = W.EditBox(main, 170, 40)
+    search:SetPoint("RIGHT", langBtn, "LEFT", -10, 0)
+    local hint = search:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    hint:SetPoint("LEFT", 4, 0)
+    hint:SetText(L("Search an option..."))
+    local results = CreateFrame("Frame", nil, main, W.BT)
+    results:SetPoint("TOPRIGHT", search, "BOTTOMRIGHT", 0, -2)
+    W.Size(results, 380, 10)
+    results:SetFrameStrata("DIALOG")
+    W.Backdrop(results, 0.97)
+    results:Hide()
+    local rows = {}
+    local function Row(i)
+        if rows[i] then return rows[i] end
+        local r = CreateFrame("Button", nil, results)
+        W.Size(r, 372, 18)
+        r:SetPoint("TOPLEFT", 4, -4 - (i - 1) * 18)
+        local hl = r:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        W.SetColor(hl, 1, 1, 1, 0.08)
+        r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        r.text:SetPoint("LEFT", 4, 0)
+        r.text:SetPoint("RIGHT", -4, 0)
+        r.text:SetJustifyH("LEFT")
+        r.text:SetWordWrap(false)
+        r:SetScript("OnClick", function(self)
+            results:Hide()
+            search:ClearFocus()
+            W.Reveal(self.module, self.widget)
+        end)
+        rows[i] = r
+        return r
+    end
+    search:SetScript("OnTextChanged", function(self)
+        local q = self:GetText() or ""
+        hint:SetShown(q == "")
+        local found = W.SearchOptions(q, 16)
+        if #found == 0 then results:Hide(); return end
+        for i, f in ipairs(found) do
+            local r = Row(i)
+            r.module, r.widget = f.module, f.widget
+            r.text:SetText(f.label)
+            r:Show()
+        end
+        for i = #found + 1, #rows do rows[i]:Hide() end
+        results:SetHeight(8 + #found * 18)
+        results:Show()
+    end)
+    search:HookScript("OnEscapePressed", function() results:Hide() end)
+    main:HookScript("OnHide", function() results:Hide() end)
 
     -- Menu column
     local side = main:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -1656,6 +1730,83 @@ function W.BuildMain()
     end)
     main:Hide()
     return main
+end
+
+---------------------------------------------------------------------------
+-- Search: tool names, then the texts of every panel (built hidden once, the first time something is
+-- searched). Accents and case do not matter. A result opens the tool, its sub-tab, and flashes the option.
+---------------------------------------------------------------------------
+W.AddFR({
+    ["Search an option..."] = "Rechercher une option...",
+})
+local ACCENTS = { ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e", ["à"] = "a", ["â"] = "a", ["ä"] = "a",
+    ["î"] = "i", ["ï"] = "i", ["ô"] = "o", ["ö"] = "o", ["ù"] = "u", ["û"] = "u", ["ü"] = "u", ["ç"] = "c",
+    ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["À"] = "a", ["Â"] = "a", ["Î"] = "i", ["Ô"] = "o", ["Û"] = "u", ["Ç"] = "c" }
+local function Plain(s)
+    s = (s or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
+    return s
+end
+local function Norm(s)
+    s = Plain(s)
+    for from, to in pairs(ACCENTS) do s = s:gsub(from, to) end
+    return s:lower()
+end
+local NOT_BUILT = { PvPFrames = true } -- its panel loads the PvP addon: found by its name only
+local allIndexed = false
+
+function W.SearchOptions(query, max)
+    local q = Norm(query):gsub("^%s+", ""):gsub("%s+$", "")
+    if #q < 2 or not main then return {} end
+    if not allIndexed then
+        allIndexed = true
+        for _, m in ipairs(W.modules) do
+            if not NOT_BUILT[m.key] then W.EnsurePanel(m) end
+        end
+    end
+    local out, seen = {}, {}
+    local function add(m, widget, text)
+        local key = m.key .. "|" .. text
+        if seen[key] or #out >= max then return end
+        seen[key] = true
+        out[#out + 1] = { module = m, widget = widget,
+            label = "|cffffd100" .. L(m.label) .. "|r" .. (widget and ("  |cff777777>|r  " .. text) or "") }
+    end
+    for _, m in ipairs(W.modules) do -- the tools first
+        if Norm(L(m.label)):find(q, 1, true) then add(m, nil, "") end
+    end
+    for _, m in ipairs(W.modules) do
+        for _, e in ipairs(m.index or {}) do
+            local text = Plain(e.text)
+            if Norm(text):find(q, 1, true) then add(m, e.widget, text) end
+        end
+    end
+    return out
+end
+
+function W.Reveal(m, widget)
+    W.Select(m.key)
+    if not widget then return end
+    -- the sub-tab holding it
+    local f = widget
+    for _ = 1, 10 do
+        f = f.GetParent and f:GetParent()
+        if not f then break end
+        if f.subTabs and f.subTabIndex then f.subTabs:Select(f.subTabIndex); break end
+    end
+    -- a short flash around it (a check box with its text)
+    local glow = main.searchGlow
+    if not glow then
+        glow = CreateFrame("Frame", nil, main, W.BT)
+        glow:SetBackdrop({ edgeFile = W.WHITE, edgeSize = 2 })
+        glow:SetFrameStrata("DIALOG")
+        main.searchGlow = glow
+    end
+    glow:ClearAllPoints()
+    glow:SetPoint("TOPLEFT", widget, "TOPLEFT", -4, 4)
+    glow:SetPoint("BOTTOMRIGHT", widget.label or widget, "BOTTOMRIGHT", 4, -4)
+    glow:SetBackdropBorderColor(W.R, W.G, W.B, 1)
+    glow:Show()
+    W.After(2.5, function() glow:Hide() end)
 end
 
 function W.Toggle(key)

@@ -5,7 +5,7 @@ nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'aura
 rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
 export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations façon Decursive, CC sur les cadres), alerte danger, alerte de contrôle (CC), texte de recharge, chrono de cimetière (style Capping),
 historique et records des premades de BG, liste de summon.
-Commande : `/wl` (`/wl help` affiche toutes les commandes). Langues : français / anglais.
+Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage). Langues : français / anglais.
 
 > L'addon est réservé aux membres de la guilde **War Legend** (message affiché sinon).
 > Droits réservés : utilisation libre, pas de redistribution modifiée sans accord.

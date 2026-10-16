@@ -327,6 +327,7 @@ function W.SubTabs(parent, labels, onSelect, top)
         f:SetPoint("TOPLEFT", 0, top - 28)
         f:SetPoint("BOTTOMRIGHT", 0, 0)
         f:Hide()
+        f.subTabs, f.subTabIndex = tabs, i -- the search box opens the sub-tab holding an option
         tabs.frames[i] = f
     end
     function tabs:Select(i)
