@@ -48,6 +48,9 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   (export / import of the options as one text). A profile holds the scalars of every `W.db` key plus the option tables
   listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): **a new option saved as a table goes in `TABLE_FIELDS`**.
   A module with its own event frame (not `W.On`) checks `W.IsOff("Key")` in its OnEvent.
+- `MoveFrames.lua` (`/wl move`): the safe part of MoveAny. It never moves a protected frame (`IsProtected()`), only hooks
+  Blizzard's (`HookScript`, `hooksecurefunc`), and works out of combat. Do not add action bars, unit / group frames,
+  buffs or the minimap there: EllesmereUI moves them, and moving secure frames is what breaks MoveAny.
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
   must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
 

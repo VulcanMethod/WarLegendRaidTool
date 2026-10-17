@@ -111,6 +111,7 @@ local TABLE_FIELDS = {
     raidGroups = { sortGroups = true },
     raidCooldowns = { spells = true },
     checklist = { items = true },
+    moveFrames = { winPos = true, winScale = true, elemPos = true, tipPoint = true },
 }
 local function IsTableOption(key, field)
     return field == "point" or field == "emphPoint" or (TABLE_FIELDS[key] and TABLE_FIELDS[key][field]) or false

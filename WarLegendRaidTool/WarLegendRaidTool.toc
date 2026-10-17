@@ -36,5 +36,6 @@ DangerAlert.lua
 CCAlert.lua
 CooldownText.lua
 DuelTimer.lua
+MoveFrames.lua
 Settings.lua
 VersionCheck.lua
