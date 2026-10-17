@@ -903,6 +903,9 @@ WarLegendPvP.GeneralEvents = {
 	"UNIT_HEALTH",
 	"UNIT_MAXHEALTH",
 	"UNIT_POWER_FREQUENT",
+	"UNIT_POWER_UPDATE", -- the same bar, for a client without the FREQUENT event or with a slower one
+	"UNIT_MAXPOWER",
+	"UNIT_DISPLAYPOWER",
 	"CHAT_MSG_BG_SYSTEM_HORDE",
 	"CHAT_MSG_BG_SYSTEM_ALLIANCE",
 	"CHAT_MSG_BG_SYSTEM_NEUTRAL",
@@ -1380,6 +1383,18 @@ function WarLegendPvP:UNIT_POWER_FREQUENT(unitID, powerToken) --gets power of na
 	local playerButton = self:GetPlayerbuttonByUnitID(unitID)
 	if playerButton then                                             --unit is a shown enemy
 		playerButton:UNIT_POWER_FREQUENT(unitID, powerToken)
+	end
+end
+
+WarLegendPvP.UNIT_POWER_UPDATE = WarLegendPvP.UNIT_POWER_FREQUENT
+WarLegendPvP.UNIT_MAXPOWER = WarLegendPvP.UNIT_POWER_FREQUENT
+
+-- the power type changed (a druid shifting form...): the bar color and its maximum, then the value
+function WarLegendPvP:UNIT_DISPLAYPOWER(unitID)
+	local playerButton = self:GetPlayerbuttonByUnitID(unitID)
+	if playerButton then
+		if playerButton.Power and playerButton.Power.UnitIdUpdate then playerButton.Power:UnitIdUpdate(unitID) end
+		playerButton:UNIT_POWER_FREQUENT(unitID)
 	end
 end
 
