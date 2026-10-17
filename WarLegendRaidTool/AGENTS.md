@@ -54,6 +54,8 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - `InterfaceOptions.lua` (`/wl cvar`): hidden game options as CVars (from Advanced Interface Options) and a CVar browser.
   A CVar is set out of combat only, through `pcall`, and only one that exists on the client is shown. The values set
   there are kept in `db.cvars` (put back at login, in the profiles); a change made elsewhere updates them (SetCVar hooks).
+- `ItemLevels.lua` (`/wl ilvl`): from SimpleItemLevel. Marks live on a child frame of each Blizzard item button, kept in a
+  weak table (nothing written in Blizzard's tables); it does nothing while SimpleItemLevel itself is loaded.
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
   must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
 

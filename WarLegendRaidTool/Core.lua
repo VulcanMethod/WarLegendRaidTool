@@ -1439,7 +1439,7 @@ local CATEGORIES = {
         { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "CapTimers", "BGStats" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "MoveFrames", "InterfaceOptions", "DangerAlert", "CooldownText", "Settings", "VersionCheck", "Bugs" } },
+        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "ItemLevels", "MoveFrames", "InterfaceOptions", "DangerAlert", "CooldownText", "Settings", "VersionCheck", "Bugs" } },
     } },
 }
 
@@ -2169,6 +2169,7 @@ W.AddFR({
     ["switch modules fully off (Settings > Modules)"] = "éteindre complètement des modules (Réglages > Modules)",
     ["move Blizzard windows, screen elements, tooltip, FPS"] = "déplacer les fenêtres Blizzard, des éléments d'écran, l'infobulle, FPS",
     ["hidden game options (camera, nameplates, combat text) and every CVar"] = "options cachées du jeu (caméra, barres de nom, texte de combat) et toutes les CVars",
+    ["item levels on the character sheet, inspect, bags, loot and tooltips"] = "niveaux d'objet sur la fiche, l'inspection, les sacs, le butin et les infobulles",
     ["export / import all the settings as one text (Settings > Profile)"] = "exporter / importer tous les réglages en un texte (Réglages > Profil)",
     ["my premade history and records"] = "historique et records de mes premades",
 })
@@ -2181,6 +2182,7 @@ local HELP = {
     { "/wl modules", "switch modules fully off (Settings > Modules)" },
     { "/wl move", "move Blizzard windows, screen elements, tooltip, FPS" },
     { "/wl cvar", "hidden game options (camera, nameplates, combat text) and every CVar" },
+    { "/wl ilvl", "item levels on the character sheet, inspect, bags, loot and tooltips" },
     { "/wl profile", "export / import all the settings as one text (Settings > Profile)" },
     { "/wl reset [name]", "reset one module's saved data (no name: list them)" },
     { "/wl rl", "switch /rl between Blizzard's /reload and EllesmereUI's popup" },

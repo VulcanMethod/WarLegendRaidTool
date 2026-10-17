@@ -38,5 +38,6 @@ CooldownText.lua
 DuelTimer.lua
 MoveFrames.lua
 InterfaceOptions.lua
+ItemLevels.lua
 Settings.lua
 VersionCheck.lua
