@@ -47,6 +47,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl preload` | Charger les modules de raid pendant l'écran de chargement (activé par défaut : pas de gel au premier `/wl`). |
 | `/wl perf` | Mémoire et CPU utilisés par l'addon. |
 | `/wl move` | Déplacer les cadres (repris de MoveAny, version sûre) : fenêtres Blizzard à la souris hors combat (Ctrl+molette : taille, place retenue en option), éléments d'écran (texte d'erreur, de zone, emotes de boss, souffle, score du BG, barre de capture, durabilité), infobulle au curseur ou à une ancre, FPS / latence. Les barres d'action, cadres d'unité, buffs et minicarte ne sont pas touchés (EllesmereUI). |
+| `/wl cvar` | Options d'interface (reprises d'Advanced Interface Options) : distance max de la caméra, fenêtre de file des sorts, distance et empilement des barres de nom, texte de combat, noms et titres, couleurs de classe dans le chat... et un navigateur de toutes les CVars (chercher, modifier, valeur par défaut). Hors combat seulement ; les valeurs changées ici sont remises à la connexion et vont dans les profils. |
 | `/wl modules` | Réglages > Modules : décocher un module l'éteint complètement (plus d'événements, de messages ni de CPU). |
 | `/wl profile` | Réglages > Profil : exporter tous les réglages (addon et cadres de BG) en un texte à copier, ou en importer un (puis recharger). Les données (historiques, membres, presets) n'y sont jamais. |
 | `/wl reset [données]` | Sans nom : liste les données sauvegardées. Avec un nom : remet ce module à zéro (puis recharge). |

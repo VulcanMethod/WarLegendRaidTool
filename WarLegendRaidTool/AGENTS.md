@@ -51,6 +51,9 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - `MoveFrames.lua` (`/wl move`): the safe part of MoveAny. It never moves a protected frame (`IsProtected()`), only hooks
   Blizzard's (`HookScript`, `hooksecurefunc`), and works out of combat. Do not add action bars, unit / group frames,
   buffs or the minimap there: EllesmereUI moves them, and moving secure frames is what breaks MoveAny.
+- `InterfaceOptions.lua` (`/wl cvar`): hidden game options as CVars (from Advanced Interface Options) and a CVar browser.
+  A CVar is set out of combat only, through `pcall`, and only one that exists on the client is shown. The values set
+  there are kept in `db.cvars` (put back at login, in the profiles); a change made elsewhere updates them (SetCVar hooks).
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
   must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
 
