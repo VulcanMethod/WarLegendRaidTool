@@ -200,7 +200,9 @@ local function Layout()
         end
     end
     anchor:SetHeight(math.max(CAP_H, #normal * CAP_H))
-    anchor:SetShown(#normal > 0)
+    -- shown while any bar runs, the emphasized ones too: its OnUpdate is the only timer of every bar, and a
+    -- hidden frame gets no OnUpdate (a bar alone in the middle used to freeze at its last 5 seconds)
+    anchor:SetShown(next(active) ~= nil)
 end
 
 local function StopBar(key)

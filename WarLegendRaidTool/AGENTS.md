@@ -1,7 +1,7 @@
 # WarLegendRaidTool — context for coding agents
 
 World of Warcraft **Classic** addon (client beta, `## Interface: 16001`) for the "War Legend" guild:
-raid groups, loot council, raid note, buffs, ready check, attendance, who pulled, inspect, aura
+raid groups, loot council, buffs, ready check, attendance, who pulled, inspect, aura
 tracking, raid cooldowns, alts, guild tools, trials, guild bank characters, battleground frames / graveyard
 timer / premade history. Slash command `/wl` (also `/wlrt`, `/warlegend`), `/wl help` lists every command.
 Current version is in `WarLegendRaidTool.toc` (`## Version:`).
@@ -43,7 +43,8 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   `BGStats.lua` (my guild premades, players, fastest wins per battleground, `/wl bg`). These three are **personal only:
   no addon messages** — the user chose that; do not add guild sync to them without being asked.
 
-- `Settings.lua`: Settings > Modules (`W.SetModuleOn(key, on)` / `W.IsOff(key)`: Core skips the `W.On`, `W.OnRoster`,
+- `Settings.lua`: Settings > General (the options of the addon as a whole: minimap button, preload of the raid modules,
+  countdown voice, overlap switch; an option that concerns the whole addon goes there, not in a module's panel), Settings > Modules (`W.SetModuleOn(key, on)` / `W.IsOff(key)`: Core skips the `W.On`, `W.OnRoster`,
   `W.OnAddon` handlers and the test of that module's FILE, found with `W.Where`; one module per file) and Settings > Profile
   (export / import of the options as one text). A profile holds the scalars of every `W.db` key plus the option tables
   listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): **a new option saved as a table goes in `TABLE_FIELDS`**.
@@ -61,6 +62,10 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc).
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
   must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
+- **Cost** (`/wl perf`): every `W.On` handler, `W.After` timer, roster and ready function is timed (max of one run,
+  count, total). A hook on Blizzard code that can run often (`hooksecurefunc`, `HookScript`, tooltip callbacks) is
+  wrapped with `W.Timed("label", fn)` so it shows there too (see `ItemLevels.lua`). Anything that must run every
+  frame (`OnUpdate`) is only set while its frame is shown, and throttled (0.1 s or more) when a timer text is enough.
 
 ## Commands and docs
 - A new `/wl` sub-command goes in `W.slash` **and** in the `HELP` list of `Core.lua` (`/wl help`, with its French text)
@@ -92,7 +97,9 @@ local db
   Build the UI with `W.Title(p, text)`, `W.Check(p, text, get, set, tip)`, `W.Button(p, text, w, h, onClick, tip)`,
   `W.Label(p, text, font)`, `W.EditBox(p, w, maxLetters)`, `W.Cycle`, `W.ScrollList`, `W.Table`, `W.SubTabs`,
   then `:SetPoint("TOPLEFT", x, -y)`. To show the module in the menu, add its key to `CATEGORIES`
-  in `Core.lua` (otherwise it goes to the last section).
+  in `Core.lua`: three tabs, Raid (the raid night in order: Organisation, Preparation, Combat, Loot, then PvP; collapsible
+  sections), Guild (Members, My characters) and Options (Addon, Interface: nothing to do with a raid or the guild). A key
+  left out goes to the last section of Options.
 - **Slash sub-command**: `W.slash.name = function(rest) ... end` gives `/wl name`.
 - **Chat output**: `W.Print(msg)` (local), `W.Announce(text, channel)` / `W.SendChat(...)` (public).
 - **Addon messages**: `W.OnAddon(prefix, fn)` to receive, `W.Send(prefix, msg, channel, target)` to send,

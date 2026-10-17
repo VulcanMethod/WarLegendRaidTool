@@ -6,7 +6,12 @@ rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, st
 export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations façon Decursive, CC sur les cadres), alerte danger, alerte de contrôle (CC), texte de recharge, chrono de cimetière (style Capping),
 historique et records des premades de BG, liste de summon.
 Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage).
-Onglet **Réglages** : éteindre les modules dont on ne se sert pas, partager sa configuration (profil à copier / coller). Langues : français / anglais.
+La fenêtre a trois onglets : **Raid** (sections Organisation, Préparation, Combat, Butin, JcJ : les outils d'une soirée,
+dans l'ordre), **Guilde** (Membres : guilde, recrues, carte ; Mes personnages : rerolls, banque, export sim) et
+**Options** (Addon : réglages, version, bugs ; Interface : cadres, options cachées, niveaux d'objet, texte de recharge,
+focus, qualité de vie). Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, voix du
+décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
+copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style).
 
 > L'addon est réservé aux membres de la guilde **War Legend** (message affiché sinon).
 > Droits réservés : utilisation libre, pas de redistribution modifiée sans accord.
@@ -42,18 +47,17 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 |---|---|
 | `/wl` | Ouvre / ferme la fenêtre principale. |
 | `/wl help` | Affiche toutes les commandes dans le chat. |
-| `/wl minimap` | Affiche / cache le bouton de la minicarte. |
-| `/wl bugs` | Ouvre l'onglet Bugs (erreurs Lua récentes). |
-| `/wl preload` | Charger les modules de raid pendant l'écran de chargement (activé par défaut : pas de gel au premier `/wl`). |
-| `/wl perf` | Mémoire et CPU utilisés par l'addon. |
+| `/wl minimap` | Affiche / cache le bouton de la minicarte (aussi dans Options > Réglages > Général). |
+| `/wl bugs` | Ouvre Options > Bugs (erreurs Lua récentes). |
+| `/wl preload` | Charger les modules de raid pendant l'écran de chargement (activé par défaut : pas de gel au premier `/wl` ; aussi dans Options > Réglages > Général). |
+| `/wl perf` | Mémoire et CPU utilisés par l'addon, puis ses travaux les plus lents (une exécution) et les plus coûteux (total depuis la connexion) : événements, timers, hooks, avec le fichier et la ligne. |
 | `/wl move` | Déplacer les cadres (repris de MoveAny, version sûre) : fenêtres Blizzard à la souris hors combat (Ctrl+molette : taille, place retenue en option), éléments d'écran (texte d'erreur, de zone, emotes de boss, souffle, score du BG, barre de capture, durabilité), infobulle au curseur ou à une ancre, FPS / latence. Les barres d'action, cadres d'unité, buffs et minicarte ne sont pas touchés (EllesmereUI). |
 | `/wl cvar` | Options d'interface (reprises d'Advanced Interface Options) : distance max de la caméra, fenêtre de file des sorts, distance et empilement des barres de nom, texte de combat, noms et titres, couleurs de classe dans le chat... et un navigateur de toutes les CVars (chercher, modifier, valeur par défaut). Hors combat seulement ; les valeurs changées ici sont remises à la connexion et vont dans les profils. |
 | `/wl ilvl` | Niveaux d'objet (repris de SimpleItemLevel) : sur la fiche de personnage, l'inspection, les sacs, la banque et le butin, niveau moyen sous le modèle, ligne dans les infobulles, flèche sur les objets meilleurs que les miens, « E » sur l'équipement sans enchantement. Inactif si l'addon SimpleItemLevel est chargé. |
 | `/wl map` | Carte de guilde (reprise de GuildMap) : les membres de la guilde sur la carte du monde et la minicarte, icône de classe, infobulle (niveau, zone), clic : chuchoter, clic droit : inviter. Ma position est partagée hors donjon / raid / BG (désactivable). Compatible avec les membres qui ont l'addon GuildMap. |
-| `/wl modules` | Réglages > Modules : décocher un module l'éteint complètement (plus d'événements, de messages ni de CPU). |
-| `/wl profile` | Réglages > Profil : exporter tous les réglages (addon et cadres de BG) en un texte à copier, ou en importer un (puis recharger). Les données (historiques, membres, presets) n'y sont jamais. |
+| `/wl modules` | Options > Réglages > Modules : décocher un module l'éteint complètement (plus d'événements, de messages ni de CPU). |
+| `/wl profile` | Options > Réglages > Profil : exporter tous les réglages (addon et cadres de BG) en un texte à copier, ou en importer un (puis recharger). Les données (historiques, membres, presets) n'y sont jamais. |
 | `/wl reset [données]` | Sans nom : liste les données sauvegardées. Avec un nom : remet ce module à zéro (puis recharge). |
-| `/wl rl` | Bascule `/rl` entre le vrai `/reload` de Blizzard et la fenêtre d'EllesmereUI. |
 | `/wl logdebug` | Active / coupe le débogage du journal de combat automatique. |
 
 **Raid : groupes et marques**

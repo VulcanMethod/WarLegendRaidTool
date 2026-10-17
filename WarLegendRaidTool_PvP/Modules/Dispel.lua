@@ -420,12 +420,19 @@ function dispel:AttachToPlayerButton(playerButton)
 	return f
 end
 
--- one listener for every ally button
+-- one listener for every ally button, registered only while the frames are enabled (in a battleground):
+-- UNIT_AURA fires for every unit, hundreds of times a second in a raid, and once this addon has been loaded
+-- (a battleground, the PvP tab, a profile export) it stays in memory for the rest of the session
 local auraFrame = CreateFrame("Frame")
-auraFrame:RegisterEvent("UNIT_AURA")
 auraFrame:SetScript("OnEvent", function(_, _, unit)
 	if type(unit) ~= "string" or not (unit:find("^raid%d") or unit:find("^party%d") or unit == "player") then return end
 	if not WarLegendPvP.states or not WarLegendPvP.states.real or not WarLegendPvP.states.real.isInBattleground then return end
 	local ok, btn = pcall(WarLegendPvP.GetPlayerbuttonByUnitID, WarLegendPvP, unit)
 	if ok and btn and not btn.PlayerIsEnemy and btn.Dispel and btn.Dispel.Enabled then btn.Dispel:Schedule() end
 end)
+if hooksecurefunc and WarLegendPvP.Enable and WarLegendPvP.Disable then
+	hooksecurefunc(WarLegendPvP, "Enable", function() auraFrame:RegisterEvent("UNIT_AURA") end)
+	hooksecurefunc(WarLegendPvP, "Disable", function() auraFrame:UnregisterEvent("UNIT_AURA") end)
+else
+	auraFrame:RegisterEvent("UNIT_AURA")
+end

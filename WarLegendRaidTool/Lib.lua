@@ -483,39 +483,10 @@ MakeReloadKey()
 W.On("PLAYER_REGEN_ENABLED", MakeReloadKey, true)
 BINDING_HEADER_WARLEGENDRAIDTOOL = "WarLegend RaidTool"
 W.AddFR({ ["Reload the interface"] = "Recharger l'interface" })
-W.OnReady(function() _G["BINDING_NAME_CLICK WLRTReloadKey:LeftButton"] = L("Reload the interface") end)
-
--- /rl as an alias of Blizzard's own /reload (experimental). A typed /reload is a secure command, a /rl
--- handler written by an addon (EllesmereUI's, WarLegend's) is not allowed to reload on WoW: Forever.
--- Blizzard builds its slash table from the globals SLASH_<NAME><n> when the chat is first used: adding
--- "/rl" as one more name of RELOAD, and removing EllesmereUI's own /rl, makes "/rl" run the real command.
--- Only done while RELOAD is still waiting to be read (else nothing changes and EllesmereUI keeps its
--- popup). /wl rl switches it off (needs a reload).
-W.AddFR({
-    ["/rl is now Blizzard's own /reload: reload the interface to apply."] =
-        "/rl devient la vraie commande /reload de Blizzard : recharge l'interface pour appliquer.",
-    ["/rl goes back to EllesmereUI's popup: reload the interface to apply."] =
-        "/rl revient à la fenêtre d'EllesmereUI : recharge l'interface pour appliquer.",
-})
 W.OnReady(function()
-    local ui = W.DB("ui")
-    if ui.rlAlias == nil then ui.rlAlias = true end
-    if not ui.rlAlias or not SlashCmdList or not rawget(SlashCmdList, "RELOAD") then return end
-    local n = 1
-    while _G["SLASH_RELOAD" .. n] do
-        if tostring(_G["SLASH_RELOAD" .. n]):lower() == "/rl" then return end
-        n = n + 1
-    end
-    _G["SLASH_RELOAD" .. n] = "/rl"
-    if rawget(SlashCmdList, "RL") then SlashCmdList["RL"] = nil end -- EllesmereUI's popup version
-    if _G.SLASH_RL1 == "/rl" then _G.SLASH_RL1 = nil end
+    _G["BINDING_NAME_CLICK WLRTReloadKey:LeftButton"] = L("Reload the interface")
+    W.DB("ui").rlAlias = nil -- the old "/rl" alias of /reload (removed: it rewrote another addon's slash command)
 end)
-W.slash.rl = function()
-    local ui = W.DB("ui")
-    ui.rlAlias = not ui.rlAlias
-    W.ConfirmReload(ui.rlAlias and L("/rl is now Blizzard's own /reload: reload the interface to apply.")
-        or L("/rl goes back to EllesmereUI's popup: reload the interface to apply."))
-end
 
 -- BigWigs-like countdown: a spoken number (Media/Sounds/Countdown/<fr|en>/<1-5>.mp3, Windows voices) and the
 -- "pop" of a big number (it starts large, settles, then fades). W.Pulse scales the frame it is given: give it an

@@ -83,13 +83,33 @@ function W.Measure(label, fn, ...)
     return ok, err
 end
 
--- the n slowest, { label, max ms, count }
+-- the n slowest (one run), { label, max ms, count, total ms }
 function W.SlowestWork(n)
     local list = {}
-    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count } end
+    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total } end
     table.sort(list, function(a, b) return a[2] > b[2] end)
     while #list > (n or 5) do table.remove(list) end
     return list
+end
+
+-- the n busiest (most time in all since the login), same entries: what costs frames, even in small runs
+function W.BusiestWork(n)
+    local list = {}
+    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total } end
+    table.sort(list, function(a, b) return a[4] > b[4] end)
+    while #list > (n or 5) do table.remove(list) end
+    return list
+end
+
+-- A function wrapped for /wl perf: hooks on Blizzard code (hooksecurefunc, HookScript, tooltip callbacks)
+-- and other scripts that can run often are timed like the event handlers. Return values are dropped
+-- (the game ignores a hook's anyway); an error goes to the error handler, as for an event.
+function W.Timed(label, fn)
+    label = label .. " " .. W.Where(2)
+    return function(...)
+        local ok, err = W.Measure(label, fn, ...)
+        if not ok then geterrorhandler()(err) end
+    end
 end
 
 function W.After(delay, fn)
@@ -1427,19 +1447,26 @@ local function SavePos()
     ui.point, ui.relPoint, ui.x, ui.y = p, rp, x, y
 end
 
--- Menu: 2 tabs on top (Raid / Guild). Raid holds collapsible sections (one open at a time, raid and
--- PvP tools together), Guild lists its tools directly. English keys, translated when the window is built.
+-- Menu: 3 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot) plus PvP,
+-- with collapsible sections (accordion = true: one open at a time, the tab is long). Guild = the guild and
+-- my characters. Options = the addon itself and the interface tools (nothing to do with a raid or the
+-- guild). The short tabs show every section open. English keys, translated when the window is built.
 -- Modules not listed go to the last section of the last tab.
 local CATEGORIES = {
-    { key = "pve", title = "Raid", sections = {
-        { key = "org", title = "Organisation", items = { "RaidGroups", "MarksBar", "InviteTool", "AutoPromote" } },
-        { key = "prep", title = "Preparation", items = { "Readiness", "Checklist", "RaidBuffs", "ReadyCheck", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "CombatTimer", "CCAlert", "DuelTimer", "AutoLog", "Focus", "Summon" } },
+    { key = "pve", title = "Raid", accordion = true, sections = {
+        { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
+        { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "CombatTimer", "WhoPulled", "AutoLog", "CCAlert" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "CapTimers", "BGStats" } },
+        { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "DuelTimer", "DangerAlert" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "me", items = { "Guild", "GuildPositions", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "ItemLevels", "MoveFrames", "InterfaceOptions", "DangerAlert", "CooldownText", "Settings", "VersionCheck", "Bugs" } },
+        { key = "members", title = "Members", items = { "Guild", "Roster", "GuildPositions" } },
+        { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
+    } },
+    { key = "options", title = "Options", sections = {
+        { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
+        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife" } },
     } },
 }
 
@@ -1450,9 +1477,13 @@ W.AddFR({
     ["Combat"] = "Combat",
     ["Loot"] = "Butin",
     ["Raid"] = "Raid",
-    ["Battleground"] = "Champ de bataille",
+    ["PvP"] = "JcJ",
     ["Guild"] = "Guilde",
-    ["Guild & me"] = "Guilde & perso",
+    ["Members"] = "Membres",
+    ["My characters"] = "Mes personnages",
+    ["Options"] = "Options",
+    ["Addon"] = "Addon",
+    ["Interface"] = "Interface",
     ["Raid Groups"] = "Groupes de raid",
     ["Invite Tool"] = "Invitations",
     ["Raid Inspect"] = "Inspection",
@@ -1522,7 +1553,7 @@ function W.Select(key, fromSection, fromCategory)
     if cat then
         ui.category = cat
         for _, c in ipairs(main.categories or {}) do
-            if c.key == cat and #c.sections > 1 then ui.openSection = sec end
+            if c.key == cat and c.accordion then ui.openSection = sec end
         end
     end
     if main.LayoutMenu then main.LayoutMenu() end
@@ -1708,7 +1739,7 @@ function W.BuildMain()
     -- tabs -> sections -> modules (a module may be listed twice)
     local cats, placed = {}, {}
     for _, c in ipairs(CATEGORIES) do
-        local cat = { key = c.key, title = c.title, short = c.short, pvp = c.pvp, sections = {} }
+        local cat = { key = c.key, title = c.title, short = c.short, pvp = c.pvp, accordion = c.accordion, sections = {} }
         for _, s in ipairs(c.sections) do
             local list = {}
             for _, key in ipairs(s.items) do
@@ -1765,8 +1796,20 @@ function W.BuildMain()
     end
 
     local LayoutMenu
-    -- the 2 tabs on top: Raid / Guild, sharing the width
-    local tabW = { math.floor((BTN_W - 4) / 2), BTN_W - 4 - math.floor((BTN_W - 4) / 2) }
+    -- the tabs on top (Raid / Guild / Options), 2 px apart, each as wide as its label is long: the menu column
+    -- is narrow and "OPTIONS" needs more room than "RAID"
+    local weights, total = {}, 0
+    for i, cat in ipairs(cats) do
+        weights[i] = math.max(3, #W.Upper(L(cat.short or cat.title)))
+        total = total + weights[i]
+    end
+    local free = BTN_W - 2 * (#cats - 1)
+    local tabW, used = {}, 0
+    for i = 1, #cats do
+        tabW[i] = math.floor(free * weights[i] / total)
+        used = used + tabW[i]
+    end
+    tabW[#cats] = tabW[#cats] + free - used
     local tx = IN + 3
     for i, cat in ipairs(cats) do
         local t = CreateFrame("Button", nil, main)
@@ -1819,11 +1862,18 @@ function W.BuildMain()
                 h.sign = h:CreateTexture(nil, "OVERLAY")
                 W.Size(h.sign, 12, 12)
                 h.sign:SetPoint("RIGHT", -6, 0)
-                h:SetScript("OnClick", function()
-                    local ui = W.DB("ui")
-                    ui.openSection = ui.openSection ~= sec.key and sec.key or nil
-                    LayoutMenu()
-                end)
+                -- a short tab shows every section: its headers are plain titles
+                if cat.accordion then
+                    h:SetScript("OnClick", function()
+                        local ui = W.DB("ui")
+                        ui.openSection = ui.openSection ~= sec.key and sec.key or nil
+                        LayoutMenu()
+                    end)
+                else
+                    h:EnableMouse(false)
+                    hhl:Hide()
+                    h.sign:Hide()
+                end
                 sec.header = h
             end
             for _, m in ipairs(sec.list) do sec.buttons[#sec.buttons + 1] = EntryButton(m, sec, cat) end
@@ -1843,12 +1893,14 @@ function W.BuildMain()
             for _, sec in ipairs(cat.sections) do
                 local isOpen = true
                 if sec.header then
-                    isOpen = sec.key == ui.openSection
+                    isOpen = (not cat.accordion) or sec.key == ui.openSection
                     sec.header:SetShown(active)
                     if active then
                         sec.header:ClearAllPoints()
                         sec.header:SetPoint("TOPLEFT", IN + 3, y)
-                        sec.header.sign:SetTexture(isOpen and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
+                        if cat.accordion then
+                            sec.header.sign:SetTexture(isOpen and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
+                        end
                         y = y - 22
                     end
                 end
@@ -2076,6 +2128,7 @@ W.AddFR({
     ["load the raid modules at the loading screen (fewer freezes) on / off"] =
         "charger les modules de raid pendant l'écran de chargement (moins de gels) oui / non",
     ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
+    ["Busiest work (total ms since login):"] = "Travaux les plus coûteux (total en ms depuis la connexion) :",
     ["Raid modules loaded at the loading screen: "] = "Modules de raid chargés à l'écran de chargement : ",
 })
 -- /wl test: the test of every module switched on, at once (again: stops it); /wl test stop
@@ -2096,11 +2149,17 @@ W.slash.perf = function()
     else
         W.Print(L("CPU: this client has no addon profiler."))
     end
-    -- our own timing: the slowest single runs since the login / last reload, with the code that made them
+    -- our own timing since the login / last reload, with the code that made it: the slowest single runs
+    -- (freezes) and the busiest in all (the frequent small ones: hooks, timers), count and total / max
     local slow = W.SlowestWork(5)
     if #slow > 0 then
         W.Print(L("Slowest work (one run, ms):"))
-        for _, s in ipairs(slow) do W.Print(string.format("  %.1f  %s  (x%d)", s[2], s[1], s[3])) end
+        for _, s in ipairs(slow) do W.Print(string.format("  %.1f  %s  (x%d, total %.0f)", s[2], s[1], s[3], s[4])) end
+    end
+    local busy = W.BusiestWork(5)
+    if #busy > 0 then
+        W.Print(L("Busiest work (total ms since login):"))
+        for _, s in ipairs(busy) do W.Print(string.format("  %.0f  %s  (x%d, max %.1f)", s[4], s[1], s[3], s[2])) end
     end
     W.Print(L("Raid modules loaded at the loading screen: ") .. (W.DB("ui").preloadRaid and L("YES") or L("no"))
         .. "  |cff999999(/wl preload)|r")
@@ -2146,7 +2205,6 @@ W.AddFR({
     ["recent Lua errors"] = "erreurs Lua récentes",
     ["memory and CPU used by the addon"] = "mémoire et CPU utilisés par l'addon",
     ["reset one module's saved data (no name: list them)"] = "remettre à zéro les données d'un module (sans nom : les lister)",
-    ["switch /rl between Blizzard's /reload and EllesmereUI's popup"] = "basculer /rl entre le /reload de Blizzard et la fenêtre d'EllesmereUI",
     ["combat log auto-start debug"] = "débogage du journal de combat automatique",
     ["apply the preset: marks + groups"] = "appliquer le preset : marques + groupes",
     ["only the preset's marks"] = "seulement les marques du preset",
@@ -2194,7 +2252,6 @@ local HELP = {
     { "/wl map", "guild members on the world map and the minimap" },
     { "/wl profile", "export / import all the settings as one text (Settings > Profile)" },
     { "/wl reset [name]", "reset one module's saved data (no name: list them)" },
-    { "/wl rl", "switch /rl between Blizzard's /reload and EllesmereUI's popup" },
     { "/wl logdebug", "combat log auto-start debug" },
     { "/wl apply [preset]", "apply the preset: marks + groups" },
     { "/wl marks [preset]", "only the preset's marks" },

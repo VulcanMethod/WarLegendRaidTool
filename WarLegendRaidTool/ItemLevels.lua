@@ -196,7 +196,7 @@ local function CharacterAverage()
 end
 
 if hooksecurefunc and type(PaperDollItemSlotButton_Update) == "function" then
-    hooksecurefunc("PaperDollItemSlotButton_Update", function(button)
+    hooksecurefunc("PaperDollItemSlotButton_Update", W.Timed("hook character sheet", function(button)
         if not On("character") then Clean(button); return end
         local slot = button:GetID()
         if slot and slot >= 1 and slot <= 19 and slot ~= 4 and slot ~= 19 then -- not the shirt and the tabard
@@ -205,7 +205,7 @@ if hooksecurefunc and type(PaperDollItemSlotButton_Update) == "function" then
             Clean(button)
         end
         if not charPending then charPending = true; W.After(0.1, CharacterAverage) end
-    end)
+    end))
 end
 
 local inspectAvg, inspectRetry
@@ -241,7 +241,7 @@ end
 
 local function HookInspect()
     if type(InspectPaperDollItemSlotButton_Update) ~= "function" then return end
-    hooksecurefunc("InspectPaperDollItemSlotButton_Update", function(button)
+    hooksecurefunc("InspectPaperDollItemSlotButton_Update", W.Timed("hook inspect window", function(button)
         if not On("inspect") then Clean(button); return end
         local unit = (InspectFrame and InspectFrame.unit) or "target"
         local link = GetInventoryItemLink(unit, button:GetID())
@@ -258,7 +258,7 @@ local function HookInspect()
                 end
             end)
         end
-    end)
+    end))
     if InspectPaperDollFrame and InspectPaperDollFrame.UpdateButtons then
         hooksecurefunc(InspectPaperDollFrame, "UpdateButtons", function() InspectAverage((InspectFrame and InspectFrame.unit) or "target") end)
     elseif type(InspectPaperDollFrame_UpdateButtons) == "function" then
@@ -287,32 +287,33 @@ local function MarkBagButton(button, bag, slot)
     Mark(button, GetContainerItemLink(bag, slot), "bags")
 end
 
+-- the hooks run on every bag update while the bags are open (looting...): timed, so /wl perf shows their cost
 if hooksecurefunc then
     if type(ContainerFrame_Update) == "function" then
-        hooksecurefunc("ContainerFrame_Update", function(container)
+        hooksecurefunc("ContainerFrame_Update", W.Timed("hook bags", function(container)
             local bag, name = container:GetID(), container:GetName()
             for i = 1, container.size or 0 do
                 local button = _G[name .. "Item" .. i]
                 if button then MarkBagButton(button, bag, button:GetID()) end
             end
-        end)
+        end))
     else
-        local function update(frame)
+        local update = W.Timed("hook bags", function(frame)
             if not frame.EnumerateValidItems then return end
             for _, button in frame:EnumerateValidItems() do
                 MarkBagButton(button, button.GetBagID and button:GetBagID(), button:GetID())
             end
-        end
+        end)
         if ContainerFrameCombinedBags and ContainerFrameCombinedBags.UpdateItems then hooksecurefunc(ContainerFrameCombinedBags, "UpdateItems", update) end
         for _, frame in ipairs((ContainerFrameContainer or UIParent).ContainerFrames or {}) do
             if frame.UpdateItems then hooksecurefunc(frame, "UpdateItems", update) end
         end
     end
     if type(BankFrameItemButton_Update) == "function" then
-        hooksecurefunc("BankFrameItemButton_Update", function(button)
+        hooksecurefunc("BankFrameItemButton_Update", W.Timed("hook bank", function(button)
             if button.isBag then return end
             MarkBagButton(button, button:GetParent():GetID(), button:GetID())
-        end)
+        end))
     end
 end
 
@@ -320,21 +321,21 @@ end
 -- Loot window
 ---------------------------------------------------------------------------
 if hooksecurefunc and type(LootFrame_UpdateButton) == "function" then
-    hooksecurefunc("LootFrame_UpdateButton", function(index)
+    hooksecurefunc("LootFrame_UpdateButton", W.Timed("hook loot window", function(index)
         local button = _G["LootButton" .. index]
         if not button then return end
         if not On("loot") or not button:IsEnabled() or not button.slot then Clean(button); return end
         Mark(button, GetLootSlotLink(button.slot), "loot")
-    end)
+    end))
 elseif LootFrame and LootFrame.ScrollBox and LootFrame.ScrollBox.RegisterCallback then
-    LootFrame.ScrollBox:RegisterCallback("OnUpdate", function()
+    LootFrame.ScrollBox:RegisterCallback("OnUpdate", W.Timed("hook loot window", function()
         LootFrame.ScrollBox:ForEachFrame(function(frame)
             if not frame.Item then return end
             local data = frame.GetElementData and frame:GetElementData()
             if not On("loot") or not (data and data.slotIndex) then Clean(frame.Item); return end
             Mark(frame.Item, GetLootSlotLink(data.slotIndex), "loot")
         end)
-    end)
+    end))
 end
 
 ---------------------------------------------------------------------------
@@ -353,7 +354,7 @@ local function HasLevelLine(tooltip)
     return false
 end
 
-local function OnTooltipItem(tooltip)
+local OnTooltipItem = W.Timed("hook item tooltip", function(tooltip)
     if not On("tooltip") or not tooltip.GetItem then return end
     local _, link = tooltip:GetItem()
     link = W.Safe(link)
@@ -362,7 +363,7 @@ local function OnTooltipItem(tooltip)
     if classID ~= CLASS_WEAPON and classID ~= CLASS_ARMOR then return end
     local level = W.ItemLevel(link)
     if level and not HasLevelLine(tooltip) then tooltip:AddLine(string.format(ITEM_LEVEL or "Item Level %d", level), 1, 0.82, 0) end
-end
+end)
 if C_TooltipInfo and TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipItem)
 else

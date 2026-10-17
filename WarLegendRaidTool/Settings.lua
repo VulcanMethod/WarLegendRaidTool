@@ -1,8 +1,19 @@
 -- WarLegend RaidTool - Settings
--- Modules: switch any module fully off (no events, no addon messages, no test). Profile: every setting
--- as one line of text to copy (export) and paste on another character or for another player (import).
+-- General: the options of the addon as a whole (minimap button, preload, countdown voice, overlap), which
+-- otherwise only had a /wl command. Modules: switch any module fully off (no events, no addon messages, no
+-- test). Profile: every setting as one line of text to copy (export) and paste on another character or for
+-- another player (import).
 local W = WLRT
 W.AddFR({
+    ["General"] = "Général",
+    ["Options of the addon as a whole. The style and the language are the two buttons in the header of this window."] =
+        "Options de l'addon dans son ensemble. Le style et la langue sont les deux boutons de l'en-tête de cette fenêtre.",
+    ["Minimap button"] = "Bouton de la minicarte",
+    ["Load the raid modules at the loading screen (no freeze at the first /wl, a little more memory when alone)"] =
+        "Charger les modules de raid pendant l'écran de chargement (pas de gel au premier /wl, un peu plus de mémoire en solo)",
+    ["Use our features even when another addon already provides them (Naowh Forever, EllesmereUI)"] =
+        "Utiliser nos fonctions même quand un autre addon les fournit déjà (Naowh Forever, EllesmereUI)",
+    ["Countdown voice (battleground timers, duels):"] = "Voix du décompte (chronos de BG, duels) :",
     ["Settings"] = "Réglages",
     ["Modules"] = "Modules",
     ["Profile"] = "Profil",
@@ -258,11 +269,31 @@ local function BuildProfile(p)
     end):SetPoint("TOPLEFT", 140, -50)
 end
 
+-- the options of the addon as a whole (the same values as /wl minimap, /wl preload, the voice cycles of the
+-- timers and the "Use it anyway" of the overlap notes: one place to find them)
+local function BuildGeneral(p)
+    local info = W.Label(p, L("Options of the addon as a whole. The style and the language are the two buttons in the header of this window."),
+        "GameFontHighlightSmall")
+    info:SetPoint("TOPLEFT", 14, -6)
+    info:SetWidth(700)
+    info:SetJustifyH("LEFT")
+    W.Check(p, L("Minimap button"), function() return not W.DB("minimap").hide end,
+        function(v) W.DB("minimap").hide = not v; W.UpdateMinimap() end):SetPoint("TOPLEFT", 12, -36)
+    W.Check(p, L("Load the raid modules at the loading screen (no freeze at the first /wl, a little more memory when alone)"),
+        function() return W.DB("ui").preloadRaid end, function(v) W.DB("ui").preloadRaid = v end):SetPoint("TOPLEFT", 12, -60)
+    W.Check(p, L("Use our features even when another addon already provides them (Naowh Forever, EllesmereUI)"),
+        W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, -84)
+    W.Label(p, L("Countdown voice (battleground timers, duels):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -122)
+    W.Cycle(p, 130, W.CountdownVoiceValues(), function() return W.DB("ui").countdownVoice or "auto" end,
+        function(v) W.DB("ui").countdownVoice = v; W.CountdownVoice(3) end):SetPoint("TOPLEFT", 330, -117)
+end
+
 W.RegisterModule("Settings", "Settings", function(p)
     W.Title(p, L("Settings"))
-    UI.tabs = W.SubTabs(p, { L("Modules"), L("Profile") })
-    BuildModules(UI.tabs.frames[1])
-    BuildProfile(UI.tabs.frames[2])
+    UI.tabs = W.SubTabs(p, { L("General"), L("Modules"), L("Profile") })
+    BuildGeneral(UI.tabs.frames[1])
+    BuildModules(UI.tabs.frames[2])
+    BuildProfile(UI.tabs.frames[3])
     UI.tabs:Select(1)
 end)
 
@@ -270,5 +301,5 @@ local function Open(tab)
     if not W.IsShown("Settings") then W.Toggle("Settings") end
     if UI.tabs then UI.tabs:Select(tab) end
 end
-W.slash.modules = function() Open(1) end
-W.slash.profile = function() Open(2) end
+W.slash.modules = function() Open(2) end
+W.slash.profile = function() Open(3) end

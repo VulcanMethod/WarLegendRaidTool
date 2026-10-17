@@ -135,6 +135,10 @@ end
 local myName
 W.OnAddon(PREFIX, function(msg, _, channel, full)
     if channel ~= "GUILD" or #msg > 300 or not (HBD and Pins) or standalone or W.IsOff("GuildPositions") then return end
+    -- in a dungeon, raid or battleground the pins cannot show (the map library hides them there): the
+    -- messages of the whole guild are dropped unread, the members are forgotten by Tick and come back
+    -- with their next message once outside
+    if IsInInstance() then return end
     myName = myName or W.UnitFullName("player")
     if not full or full == myName then return end
     local name, _, level, class, _, x, y, mapID = strsplit(",", msg)
@@ -164,10 +168,12 @@ local lastX, lastY, lastMap, lastSent, sharing = nil, nil, nil, 0, false
 
 local function Line(x, y, mapID, gone)
     local me = W.UnitFullName("player") or "?"
-    local g = W.GuildMember and W.GuildMember(me)
+    -- my rank straight from GetGuildInfo: W.GuildMember would rebuild the whole guild list (every member)
+    -- each time the roster changed, every 5 s while moving in a big guild
+    local rankIndex = GetGuildInfo and W.Safe(select(3, GetGuildInfo("player")))
     local race = W.Safe(UnitRace("player")) or ""
     local class = gone and "STEALTH" or (W.UnitClassToken("player") or "WARRIOR")
-    return string.format("%s,%s,%d,%s,%s,%.3f,%.3f,%d,%d,%d,%s,%d", me, tostring(g and g.rankIndex or 5),
+    return string.format("%s,%s,%d,%s,%s,%.3f,%.3f,%d,%d,%d,%s,%d", me, tostring(type(rankIndex) == "number" and rankIndex or 5),
         UnitLevel("player") or 1, class, (race:gsub(",", "")), x, y, mapID, 100, 0, GM_VERSION, 0)
 end
 
