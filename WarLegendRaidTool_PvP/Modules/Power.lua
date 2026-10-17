@@ -110,6 +110,13 @@ function power:AttachToPlayerButton(playerButton)
 			and not (playerButton.PlayerDetails and playerButton.PlayerDetails.isFakePlayer) then
 			unitID = "player"
 		end
+		-- an ally reads ITS OWN unit, whatever the event says: the event is matched to a button by the player's
+		-- name, and several players can share a first name (WoW: Forever), so the unit it names may be another one
+		if unitID and not playerButton.PlayerIsEnemy
+			and not (playerButton.PlayerDetails and playerButton.PlayerDetails.isFakePlayer) then
+			local own = (WarLegendPvP.UserButton == playerButton) and "player" or playerButton.unitID
+			if own then unitID = own end
+		end
 		if unitID then
 			-- the maximum can fail (secret value): protected, the bar still gets its value
 			pcall(self.UpdateMinMaxValues, self, UnitPowerMax(unitID))
