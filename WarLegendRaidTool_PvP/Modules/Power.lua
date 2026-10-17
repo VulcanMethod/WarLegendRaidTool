@@ -105,6 +105,11 @@ function power:AttachToPlayerButton(playerButton)
 
 	function playerButton.Power:UpdatePower(unitID)
 		--self:Debug("UpdatePower", unitID, powerToken)
+		-- the test mode asks every button for a random value (no unit): my own is real, it reads "player"
+		if not unitID and WarLegendPvP.UserButton == playerButton
+			and not (playerButton.PlayerDetails and playerButton.PlayerDetails.isFakePlayer) then
+			unitID = "player"
+		end
 		if unitID then
 			-- the maximum can fail (secret value): protected, the bar still gets its value
 			pcall(self.UpdateMinMaxValues, self, UnitPowerMax(unitID))
@@ -112,6 +117,7 @@ function power:AttachToPlayerButton(playerButton)
 			if issecret(value) or value ~= nil then self:SetValue(value) end
 		else
 			--for testmode
+			self:UpdateMinMaxValues(1)
 			self:SetValue(math_random(0, 100)/100)
 		end
 	end
