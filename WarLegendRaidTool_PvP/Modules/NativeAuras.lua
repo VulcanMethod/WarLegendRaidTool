@@ -72,7 +72,7 @@ local function TypeIcon(button, unitFrame, slot)
 	local size = math.max(10, math.floor((bar:GetHeight() or 20) * 0.7))
 	local holder = CreateFrame("Frame", nil, button) -- child of the aura button: hidden with it
 	holder:SetSize(size, size)
-	holder:SetPoint("RIGHT", bar, "RIGHT", -2 - (slot - 1) * (size + 1), 0)
+	holder:SetPoint("RIGHT", bar, "RIGHT", -22 - (slot - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
 	holder:SetFrameLevel(bar:GetFrameLevel() + 5)
 	local tex = holder:CreateTexture(nil, "OVERLAY")
 	tex:SetAllPoints(holder)

@@ -284,7 +284,7 @@ function dispel:AttachToPlayerButton(playerButton)
 				if not t then t = bar:CreateTexture(nil, "OVERLAY", nil, 7); typeIcons[n] = t end
 				t:SetSize(size, size)
 				t:ClearAllPoints()
-				t:SetPoint("RIGHT", bar, "RIGHT", -2 - (n - 1) * (size + 1), 0)
+				t:SetPoint("RIGHT", bar, "RIGHT", -22 - (n - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
 				t:SetAtlas("RaidFrame-Icon-Debuff" .. d.dtype)
 				t:Show()
 			end
