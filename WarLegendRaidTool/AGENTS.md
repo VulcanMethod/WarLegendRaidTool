@@ -43,6 +43,14 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   `BGStats.lua` (my guild premades, players, fastest wins per battleground, `/wl bg`). These three are **personal only:
   no addon messages** — the user chose that; do not add guild sync to them without being asked.
 
+- `Settings.lua`: Settings > Modules (`W.SetModuleOn(key, on)` / `W.IsOff(key)`: Core skips the `W.On`, `W.OnRoster`,
+  `W.OnAddon` handlers and the test of that module's FILE, found with `W.Where`; one module per file) and Settings > Profile
+  (export / import of the options as one text). A profile holds the scalars of every `W.db` key plus the option tables
+  listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): **a new option saved as a table goes in `TABLE_FIELDS`**.
+  A module with its own event frame (not `W.On`) checks `W.IsOff("Key")` in its OnEvent.
+- **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
+  must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
+
 ## Commands and docs
 - A new `/wl` sub-command goes in `W.slash` **and** in the `HELP` list of `Core.lua` (`/wl help`, with its French text)
   **and** in the "Commandes" table of `README.md`.

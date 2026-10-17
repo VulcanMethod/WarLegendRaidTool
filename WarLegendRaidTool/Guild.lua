@@ -39,6 +39,11 @@ W.AddFR({
         "Pas encore de lien de métier de %s : il doit ouvrir son métier une fois avec l'addon.",
     ["Click: open his profession. Shift-click: link it in the chat."] =
         "Clic : ouvrir son métier. Maj-clic : le lier dans le chat.",
+    ["Ctrl-click: whisper him."] = "Ctrl-clic : le chuchoter.",
+    ["Nobody has a recipe named \"%s\" (only members who have the addon and opened their professions)."] =
+        "Personne n'a de recette « %s » (seulement les membres qui ont l'addon et ont ouvert leurs métiers).",
+    ["Who can craft \"%s\":"] = "Qui peut fabriquer « %s » :",
+    ["... and %d more: see Guild > Professions."] = "... et %d de plus : voir Guilde > Métiers.",
 })
 local L = W.L
 
@@ -365,10 +370,54 @@ local function Online(name)
     return g and g.online
 end
 
+-- "Who can craft X?": the recipes whose name holds the text (an item link counts as its name), each with
+-- its crafters, online ones first. filter: one profession, or "" for all.
+local function SearchText(text)
+    text = text or ""
+    return (text:match("%[(.-)%]") or text):match("^%s*(.-)%s*$"):lower()
+end
+
+function G.FindCrafters(search, filter)
+    local d = Data()
+    local by = {}
+    for n, e in pairs(d) do
+        for prof, list in pairs(e.rec or {}) do
+            if filter == "" or prof == filter then
+                if type(list) == "table" then list = table.concat(list, ",") end
+                for id in list:gmatch("%d+") do
+                    id = tonumber(id)
+                    if RecipeLower(id):find(search, 1, true) then
+                        by[id] = by[id] or {}
+                        by[id].prof = prof
+                        table.insert(by[id], n)
+                    end
+                end
+            end
+        end
+    end
+    local found = {}
+    for id, names in pairs(by) do
+        table.sort(names, function(a, b)
+            local oa, ob = Online(a) and 1 or 0, Online(b) and 1 or 0
+            if oa ~= ob then return oa > ob end
+            return a < b
+        end)
+        found[#found + 1] = { id = id, prof = names.prof, names = names }
+    end
+    table.sort(found, function(a, b) return RecipeName(a.id) < RecipeName(b.id) end)
+    return found
+end
+
+local function CrafterNames(names)
+    local out = {}
+    for _, n in ipairs(names) do out[#out + 1] = Online(n) and ("|cff33ff66" .. n .. "|r") or ("|cff999999" .. n .. "|r") end
+    return table.concat(out, ", ")
+end
+
 function G.RefreshProfs()
     if not UI.profs or not UI.profs:IsVisible() then return end
     local d = Data()
-    local search = (UI.search:GetText() or ""):lower()
+    local search = SearchText(UI.search:GetText())
     local filter = db.profFilter or ""
     local rows = {}
     if search == "" then
@@ -390,35 +439,9 @@ function G.RefreshProfs()
         end
         UI.profHead1:SetText(L("Name")); UI.profHead2:SetText(L("Professions"))
     else
-        local by = {}
-        for n, e in pairs(d) do
-            for prof, list in pairs(e.rec or {}) do
-                if filter == "" or prof == filter then
-                    if type(list) == "table" then list = table.concat(list, ",") end
-                    for id in list:gmatch("%d+") do
-                        id = tonumber(id)
-                        if RecipeLower(id):find(search, 1, true) then
-                            by[id] = by[id] or {}
-                            by[id].prof = prof
-                            table.insert(by[id], n)
-                        end
-                    end
-                end
-            end
-        end
-        local ids = {}
-        for id in pairs(by) do ids[#ids + 1] = id end
-        table.sort(ids, function(a, b) return RecipeName(a) < RecipeName(b) end)
-        for _, id in ipairs(ids) do
-            local names = {}
-            table.sort(by[id], function(a, b)
-                local oa, ob = Online(a) and 1 or 0, Online(b) and 1 or 0
-                if oa ~= ob then return oa > ob end
-                return a < b
-            end)
-            for _, n in ipairs(by[id]) do names[#names + 1] = Online(n) and ("|cff33ff66" .. n .. "|r") or ("|cff999999" .. n .. "|r") end
+        for _, r in ipairs(G.FindCrafters(search, filter)) do
             -- a click opens this profession of the first crafter (online ones first)
-            rows[#rows + 1] = { member = by[id][1], prof = by[id].prof, cells = { RecipeName(id), table.concat(names, ", "), "" } }
+            rows[#rows + 1] = { member = r.names[1], prof = r.prof, recipe = true, cells = { RecipeName(r.id), CrafterNames(r.names), "" } }
             if #rows >= 300 then break end
         end
         UI.profHead1:SetText(L("Recipe")); UI.profHead2:SetText(L("Crafters"))
@@ -503,6 +526,7 @@ local function BuildProfs(p)
     UI.search = W.EditBox(p, 200, 60)
     UI.search:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
     UI.search:SetScript("OnTextChanged", G.RefreshProfs)
+    W.LinkTarget(UI.search) -- shift-click an item while typing: its name is searched
     local filterBtn
     filterBtn = W.Button(p, L("All"), 130, 22, function()
         local vals = ProfFilterValues()
@@ -518,12 +542,17 @@ local function BuildProfs(p)
     W.Button(p, L("Ask the guild"), 130, 22, function() G.Ask(); G.Broadcast() end):SetPoint("TOPRIGHT", -16, -6)
     UI.profs = W.Table(p, { { L("Name"), 200 }, { L("Professions"), 480 }, { L("Updated"), 70, "CENTER" } }, 420)
     UI.profs:SetPoint("TOPLEFT", 10, -40)
-    UI.profs.onClick = function(d) if d.member then ShowMemberLinks(d.member, d.prof) end end
+    UI.profs.onClick = function(d)
+        if not d.member then return end
+        if IsControlKeyDown() and ChatFrame_SendTell then ChatFrame_SendTell(d.member); return end
+        ShowMemberLinks(d.member, d.prof)
+    end
     UI.profs.onEnter = function(d, row)
         if not d.member then return end
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
         GameTooltip:AddLine(d.member, 1, 1, 1)
         GameTooltip:AddLine(L("Click: open his profession. Shift-click: link it in the chat."), 0.8, 0.8, 0.8, true)
+        if d.recipe then GameTooltip:AddLine(L("Ctrl-click: whisper him."), 0.8, 0.8, 0.8, true) end
         GameTooltip:Show()
     end
     -- the table headers change with the mode
@@ -584,3 +613,21 @@ end, function()
 end)
 
 W.On("GUILD_ROSTER_UPDATE", function() if W.IsShown("Guild") then G.RefreshInactive() end end)
+
+-- /wl craft <name or item link>: who can craft it, in the chat; alone: the Professions tab
+W.slash.craft = function(rest)
+    local search = SearchText(rest)
+    if search == "" or not db then
+        if not W.IsShown("Guild") then W.Toggle("Guild") end
+        if UI.tabs then UI.tabs:Select(2) end
+        return
+    end
+    local found = G.FindCrafters(search, "")
+    local shown = (rest or ""):match("%[(.-)%]") or (rest or ""):match("^%s*(.-)%s*$")
+    if #found == 0 then W.Print(string.format(L("Nobody has a recipe named \"%s\" (only members who have the addon and opened their professions)."), shown)); return end
+    W.Print(string.format(L("Who can craft \"%s\":"), shown))
+    for i, r in ipairs(found) do
+        if i > 8 then W.Print(string.format(L("... and %d more: see Guild > Professions."), #found - 8)); break end
+        W.Print("  " .. RecipeName(r.id) .. " (" .. r.prof .. "): " .. CrafterNames(r.names))
+    end
+end

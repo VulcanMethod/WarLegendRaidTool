@@ -108,7 +108,7 @@ function W.OnAddonLong(prefix, fn)
             local text = table.concat(p, "", 1, p.n):gsub("~3", "|"):gsub("~2", "\n"):gsub("~1", "~")
             fn(text, from, channel, full)
         end
-    end)
+    end, 3) -- the module that called W.OnAddonLong owns the prefix (Settings > Modules)
 end
 
 -- Names typed by the player: comma / semicolon / line separated. On WoW: Forever a name holds a

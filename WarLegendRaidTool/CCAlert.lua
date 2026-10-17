@@ -146,7 +146,7 @@ local events = CreateFrame("Frame")
 for _, e in ipairs({ "LOSS_OF_CONTROL_ADDED", "LOSS_OF_CONTROL_UPDATE", "PLAYER_CONTROL_LOST" }) do
     pcall(events.RegisterEvent, events, e)
 end
-events:SetScript("OnEvent", function() if W.Allowed() then Start() end end)
+events:SetScript("OnEvent", function() if W.Allowed() and not W.IsOff("CCAlert") then Start() end end)
 
 local function Test()
     Create()

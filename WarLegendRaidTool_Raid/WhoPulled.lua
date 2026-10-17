@@ -85,6 +85,7 @@ local function Found(candidate)
 end
 
 cleu:SetScript("OnEvent", function()
+    if W.IsOff("WhoPulled") then return end -- switched off in Settings > Modules
     if first or not W.Allowed() then Listen(); return end -- access lost: stop listening
     local _, sub, _, _, srcName, srcFlags, _, _, dstName, dstFlags, _, _, spellName = CombatLogGetCurrentEventInfo()
     -- WoW: Forever can hide combat log values (secret): never index or compute with them

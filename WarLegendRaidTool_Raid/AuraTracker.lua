@@ -490,6 +490,17 @@ local function SetTest(v)
     SetUnlocked(v)
 end
 
+-- "Test all": the sample icons for 30 seconds (a newer test keeps its own stop)
+local testRun = 0
+W.RegisterTest("Aura Tracking", function() return db and db.enabled end,
+    function()
+        SetTest(true)
+        testRun = testRun + 1
+        local run = testRun
+        W.After(30, function() if run == testRun and testMode then SetTest(false) end end)
+    end,
+    function() testRun = testRun + 1; if testMode then SetTest(false) end end)
+
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------

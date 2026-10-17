@@ -267,6 +267,10 @@ W.On("READY_CHECK_FINISHED", function()
 end)
 
 W.slash.rc = function() SendDurability(); Show(nil, 30, true) end
+-- "Test all": the window alone (no durability message sent), in a group only (it lists the group)
+W.RegisterTest("Ready Check", function() return db and db.enabled and W.InGroup() end,
+    function() Show(nil, 30, true) end,
+    function() if frame then frame:Hide() end end)
 
 -- /rc: starts a real ready check if you are leader/assist, otherwise opens the check window
 SLASH_WLRTREADYCHECK1 = "/rc"

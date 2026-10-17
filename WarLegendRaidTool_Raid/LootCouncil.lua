@@ -1342,6 +1342,10 @@ function LC.Test()
     if #items == 0 then items = { "item:19019" } end
     LC.StartSession(items)
 end
+-- "Test all": alone only (in a group the test session would go to the whole raid)
+W.RegisterTest("Loot Council", function() return db and db.enabled and not W.InGroup() end,
+    function() LC.Test() end,
+    function() if not W.InGroup() then LC.EndSession() end end)
 
 W.slash.loot = function(rest)
     rest = rest or ""

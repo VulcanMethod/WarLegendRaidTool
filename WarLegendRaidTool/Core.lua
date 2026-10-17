@@ -109,12 +109,17 @@ local handlers, registered = {}, {}
 -- while the raid addon loads: what its files register, to replay the login / roster events they missed
 local late
 
+-- Modules switched off (W.db.ui.off[key], Settings > Modules): the handlers, roster functions, addon
+-- messages and tests of their file are skipped, and an event only they want is unregistered.
+local offFiles = {}
+local function FileOf(where) return where and where:match("^([%w_]+%.lua)") end
+
 -- An event is registered only while at least one of its handlers is active: a frequent event
 -- (target change, item info, loot...) costs nothing while no option or window needs it.
 local function Sync(event)
     local want = false
     for _, h in ipairs(handlers[event]) do
-        if h.active then want = true; break end
+        if h.active and not offFiles[h.file] then want = true; break end
     end
     if want == (registered[event] or false) then return end
     registered[event] = want
@@ -129,7 +134,8 @@ end
 -- inactive = true: starts switched off (W.Activate turns it on). Returns the handler.
 function W.On(event, fn, always, inactive)
     handlers[event] = handlers[event] or {}
-    local h = { fn = fn, always = always, active = not inactive, event = event, label = event .. " " .. W.Where(2) }
+    local where = W.Where(2)
+    local h = { fn = fn, always = always, active = not inactive, event = event, label = event .. " " .. where, file = FileOf(where) }
     local list = handlers[event]
     list[#list + 1] = h
     if late then late.handlers[#late.handlers + 1] = h end
@@ -149,19 +155,25 @@ local function Run(event, gatedOnly, ...)
     if not list then return end
     for i = 1, #list do
         local h = list[i]
-        if h.active and ((W.access == true and (not gatedOnly or not h.always)) or (h.always and not gatedOnly)) then
+        if h.active and not offFiles[h.file] and ((W.access == true and (not gatedOnly or not h.always)) or (h.always and not gatedOnly)) then
             local ok, err = W.Measure(h.label, h.fn, ...)
             if not ok then geterrorhandler()(err) end
         end
     end
 end
 
+local function SyncAll()
+    for event in pairs(handlers) do Sync(event) end
+end
+
 -- One "roster settled" signal shared by the modules: a raid forming fires dozens of
 -- GROUP_ROSTER_UPDATE in a row, the modules run once, half a second after the first one.
-local rosterFns, rosterLabels, rosterPending = {}, {}, false
+local rosterFns, rosterLabels, rosterFiles, rosterPending = {}, {}, {}, false
 function W.OnRoster(fn)
     rosterFns[#rosterFns + 1] = fn
-    rosterLabels[fn] = "roster " .. W.Where(2)
+    local where = W.Where(2)
+    rosterLabels[fn] = "roster " .. where
+    rosterFiles[fn] = FileOf(where)
     if late then late.roster[#late.roster + 1] = fn end
 end
 
@@ -169,8 +181,10 @@ local function RosterSettled()
     rosterPending = false
     if W.access ~= true then return end
     for _, fn in ipairs(rosterFns) do
-        local ok, err = W.Measure(rosterLabels[fn] or "roster", fn)
-        if not ok then geterrorhandler()(err) end
+        if not offFiles[rosterFiles[fn]] then
+            local ok, err = W.Measure(rosterLabels[fn] or "roster", fn)
+            if not ok then geterrorhandler()(err) end
+        end
     end
 end
 
@@ -253,7 +267,7 @@ W.On("PLAYER_GUILD_UPDATE", function() W.CheckAccess() end, true)
 W.On("GUILD_ROSTER_UPDATE", function() W.CheckAccess() end, true)
 
 -- Addon messages: one handler per prefix
-local addonHandlers = {}
+local addonHandlers, addonFiles = {}, {}
 function W.RegisterPrefix(prefix)
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
         C_ChatInfo.RegisterAddonMessagePrefix(prefix)
@@ -262,9 +276,11 @@ function W.RegisterPrefix(prefix)
     end
 end
 
-function W.OnAddon(prefix, fn)
+-- level: the stack level of the module that asks (a helper of Lib.lua passes 3)
+function W.OnAddon(prefix, fn, level)
     W.RegisterPrefix(prefix)
     addonHandlers[prefix] = fn
+    addonFiles[prefix] = FileOf(W.Where(level or 2))
 end
 
 function W.AddonHandler(prefix) return addonHandlers[prefix] end
@@ -322,14 +338,16 @@ function W.LoadRaid()
     end
     if W.access == true then
         for _, h in ipairs(got.handlers) do
-            if h.active and not h.always and (h.event == "PLAYER_ENTERING_WORLD" or h.event == "PLAYER_LOGIN") then
+            if h.active and not h.always and not offFiles[h.file] and (h.event == "PLAYER_ENTERING_WORLD" or h.event == "PLAYER_LOGIN") then
                 local good, err = pcall(h.fn, false, false)
                 if not good then geterrorhandler()(err) end
             end
         end
         for _, fn in ipairs(got.roster) do
-            local good, err = pcall(fn)
-            if not good then geterrorhandler()(err) end
+            if not offFiles[rosterFiles[fn]] then
+                local good, err = pcall(fn)
+                if not good then geterrorhandler()(err) end
+            end
         end
     end
     local msgs = pendingMsgs
@@ -370,6 +388,7 @@ function Dispatch(prefix, msg, channel, sender)
         end
         return
     end
+    if offFiles[addonFiles[prefix]] then return end
     msg, sender = W.Safe(msg), W.Safe(sender)
     if not msg or not sender or sender == "" then return end
     local full = W.FullName(sender)
@@ -515,6 +534,11 @@ W.On("ADDON_LOADED", function(name)
     W.SetLanguage(W.db.ui.lang)
     W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
     W.DB("minimap", { angle = 200 })
+    if type(W.db.ui.off) ~= "table" then W.db.ui.off = {} end
+    for _, m in ipairs(W.modules) do
+        if m.file and W.db.ui.off[m.key] and not W.CORE_MODULES[m.key] then offFiles[m.file] = true end
+    end
+    SyncAll()
     W.ResolveTheme()
     for _, fn in ipairs(readyFns) do
         local ok, err = pcall(fn)
@@ -1306,7 +1330,7 @@ end
 W.tests = {}
 -- stop: hides what run showed (called by "Stop test" for every module, switched on or not)
 function W.RegisterTest(label, enabled, run, stop)
-    W.tests[#W.tests + 1] = { label = label, enabled = enabled, run = run, stop = stop }
+    W.tests[#W.tests + 1] = { label = label, enabled = enabled, run = run, stop = stop, file = FileOf(W.Where(2)) }
 end
 
 W.AddFR({
@@ -1341,9 +1365,10 @@ end
 function W.SetTestButton(b) testButton = b end
 function W.TestAll()
     local shown = {}
+    if not W.raidLoaded and not InCombatLockdown() then W.LoadRaid() end -- the raid modules have tests too
     for _, t in ipairs(W.tests) do
         local okOn, on = pcall(t.enabled)
-        if okOn and on then
+        if okOn and on and not offFiles[t.file] then
             local ok, err = pcall(t.run)
             if ok then shown[#shown + 1] = L(t.label) else geterrorhandler()(err) end
         end
@@ -1358,10 +1383,39 @@ end
 
 W.modules = {}
 local byKey = {}
+-- never switched off: the tab that switches the others back on, the error list and the version check
+W.CORE_MODULES = { Settings = true, Bugs = true, VersionCheck = true }
 function W.RegisterModule(key, label, build, refresh)
-    local m = { key = key, label = label, build = build, refresh = refresh }
+    local m = { key = key, label = label, build = build, refresh = refresh, file = FileOf(W.Where(2)) }
     W.modules[#W.modules + 1] = m
     byKey[key] = m
+    -- a module of the raid addon, loaded later: switched off from the start if it was
+    if m.file and W.db and W.db.ui and type(W.db.ui.off) == "table" and W.db.ui.off[key] and not W.CORE_MODULES[key] then
+        offFiles[m.file] = true
+        SyncAll()
+    end
+end
+
+function W.IsOff(key)
+    local m = byKey[key]
+    return m and m.file and offFiles[m.file] and true or false
+end
+
+W.AddFR({
+    ["This module is switched off: it gets no events and does nothing."] =
+        "Ce module est désactivé : il ne reçoit aucun événement et ne fait rien.",
+    ["Switch it on"] = "L'activer",
+    ["Settings > Modules lists every module."] = "Réglages > Modules liste tous les modules.",
+})
+
+-- the page of a switched off module, instead of its options
+local function BuildOff(m, p)
+    W.Title(p, L(m.label))
+    local info = W.Label(p, L("This module is switched off: it gets no events and does nothing."), "GameFontHighlight")
+    info:SetPoint("TOPLEFT", 16, -44)
+    W.Button(p, L("Switch it on"), 140, 22, function() W.SetModuleOn(m.key, true) end):SetPoint("TOPLEFT", 16, -74)
+    local more = W.Label(p, L("Settings > Modules lists every module."), "GameFontDisableSmall")
+    more:SetPoint("TOPLEFT", 16, -108)
 end
 
 local main, mini
@@ -1385,7 +1439,7 @@ local CATEGORIES = {
         { key = "bg", title = "Battleground", items = { "PvPFrames", "GYTimer", "CapTimers", "BGStats" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "DangerAlert", "CooldownText", "VersionCheck", "Bugs" } },
+        { key = "me", items = { "Guild", "Roster", "GuildBank", "Alts", "SimExport", "QualityOfLife", "DangerAlert", "CooldownText", "Settings", "VersionCheck", "Bugs" } },
     } },
 }
 
@@ -1441,7 +1495,9 @@ function W.EnsurePanel(m)
     -- with every box unchecked and every text field empty.
     m.panel:Hide()
     W.building = m
-    local ok, err = W.Measure("build the tab " .. tostring(m.key), m.build, m.panel)
+    local build = m.build
+    if W.IsOff(m.key) then build = function(p) BuildOff(m, p) end end
+    local ok, err = W.Measure("build the tab " .. tostring(m.key), build, m.panel)
     W.building = nil
     if not ok then geterrorhandler()(err) end
     return m.panel
@@ -1453,7 +1509,7 @@ function W.Select(key, fromSection, fromCategory)
     if not m then return end
     for _, other in ipairs(W.modules) do
         if other.panel then other.panel:Hide() end
-        for _, b in ipairs(other.buttons or {}) do b.sel:Hide(); b.text:SetTextColor(unpack(main.textColor)) end
+        for _, b in ipairs(other.buttons or {}) do b.sel:Hide(); W.MenuTextColor(b, other) end
     end
     W.EnsurePanel(m)
     m.panel:Show()
@@ -1471,6 +1527,28 @@ function W.Select(key, fromSection, fromCategory)
     end
     if main.LayoutMenu then main.LayoutMenu() end
     if m.refresh then m.refresh(m.panel) end
+end
+
+-- a switched off module is grey in the menu
+function W.MenuTextColor(b, m)
+    if W.IsOff(m.key) then b.text:SetTextColor(0.45, 0.45, 0.45) else b.text:SetTextColor(unpack(main.textColor)) end
+end
+
+-- on = false: the module stops getting events, messages and tests (what it already shows stays until /reload)
+function W.SetModuleOn(key, on)
+    local m = byKey[key]
+    if not m or not m.file or W.CORE_MODULES[key] then return end
+    W.DB("ui").off[key] = (not on) or nil
+    offFiles[m.file] = (not on) or nil
+    SyncAll()
+    -- the tab is built again: the options when on, the "switched off" page when off
+    if m.panel then
+        local shown = m.panel:IsShown()
+        m.panel:Hide()
+        m.panel = nil
+        if shown then W.Select(key) end
+    end
+    for _, b in ipairs(m.buttons or {}) do W.MenuTextColor(b, m) end
 end
 
 function W.BuildMain()
@@ -1671,7 +1749,7 @@ function W.BuildMain()
         b.text:SetFont(W.FONT, 11, "")
         b.text:SetPoint("LEFT", 18, 0) -- indented under its section
         b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
-        b.text:SetTextColor(unpack(main.textColor))
+        W.MenuTextColor(b, m)
         b:SetScript("OnClick", function() W.Select(m.key, sec.key, cat.key) end)
         m.buttons = m.buttons or {}
         m.buttons[#m.buttons + 1] = b
@@ -2087,6 +2165,9 @@ W.AddFR({
     ["stop the test"] = "arrêter le test",
     ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
     ["stock of my bank characters"] = "stock de mes persos banque",
+    ["who can craft it in the guild (name or item link)"] = "qui peut le fabriquer dans la guilde (nom ou lien d'objet)",
+    ["switch modules fully off (Settings > Modules)"] = "éteindre complètement des modules (Réglages > Modules)",
+    ["export / import all the settings as one text (Settings > Profile)"] = "exporter / importer tous les réglages en un texte (Réglages > Profil)",
     ["my premade history and records"] = "historique et records de mes premades",
 })
 local HELP = {
@@ -2095,6 +2176,8 @@ local HELP = {
     { "/wl minimap", "show / hide the minimap button" },
     { "/wl bugs", "recent Lua errors" },
     { "/wl perf", "memory and CPU used by the addon" },
+    { "/wl modules", "switch modules fully off (Settings > Modules)" },
+    { "/wl profile", "export / import all the settings as one text (Settings > Profile)" },
     { "/wl reset [name]", "reset one module's saved data (no name: list them)" },
     { "/wl rl", "switch /rl between Blizzard's /reload and EllesmereUI's popup" },
     { "/wl logdebug", "combat log auto-start debug" },
@@ -2112,6 +2195,7 @@ local HELP = {
     { "/wl summon", "summon list" },
     { "/wl trials", "guild trials (by rank)" },
     { "/wl bank", "stock of my bank characters" },
+    { "/wl craft [item]", "who can craft it in the guild (name or item link)" },
     { "/wl bg", "my premade history and records" },
     { "/wl gy", "graveyard timer test (fake waves)" },
     { "/wl pvp", "PvP frames settings" },

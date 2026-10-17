@@ -278,6 +278,7 @@ local function Listen()
 end
 
 castFrame:SetScript("OnEvent", function(_, _, _, _, spellID)
+    if W.IsOff("RaidCooldowns") then return end -- switched off in Settings > Modules
     local id = W.Safe(spellID)
     local e = id and bySpell[id]
     if not e then return end

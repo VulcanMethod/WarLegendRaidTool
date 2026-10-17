@@ -5,7 +5,8 @@ nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'aura
 rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
 export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations façon Decursive, CC sur les cadres), alerte danger, alerte de contrôle (CC), texte de recharge, chrono de cimetière (style Capping),
 historique et records des premades de BG, liste de summon.
-Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage). Langues : français / anglais.
+Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage).
+Onglet **Réglages** : éteindre les modules dont on ne se sert pas, partager sa configuration (profil à copier / coller). Langues : français / anglais.
 
 > L'addon est réservé aux membres de la guilde **War Legend** (message affiché sinon).
 > Droits réservés : utilisation libre, pas de redistribution modifiée sans accord.
@@ -45,6 +46,8 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl bugs` | Ouvre l'onglet Bugs (erreurs Lua récentes). |
 | `/wl preload` | Charger les modules de raid pendant l'écran de chargement (activé par défaut : pas de gel au premier `/wl`). |
 | `/wl perf` | Mémoire et CPU utilisés par l'addon. |
+| `/wl modules` | Réglages > Modules : décocher un module l'éteint complètement (plus d'événements, de messages ni de CPU). |
+| `/wl profile` | Réglages > Profil : exporter tous les réglages (addon et cadres de BG) en un texte à copier, ou en importer un (puis recharger). Les données (historiques, membres, presets) n'y sont jamais. |
 | `/wl reset [données]` | Sans nom : liste les données sauvegardées. Avec un nom : remet ce module à zéro (puis recharge). |
 | `/wl rl` | Bascule `/rl` entre le vrai `/reload` de Blizzard et la fenêtre d'EllesmereUI. |
 | `/wl logdebug` | Active / coupe le débogage du journal de combat automatique. |
@@ -81,6 +84,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl summon` | Ouvre la liste de summon. |
 | `/wl trials` | Recrues en essai (selon le rang choisi) : depuis quand, nombre de raids, rappel à la fin de l'essai. |
 | `/wl bank` | Stock et or de mes persos banque (ceux de mon compte au rang « Banque »), avec recherche. |
+| `/wl craft [objet]` | Qui peut fabriquer cet objet dans la guilde (nom ou lien d'objet avec Maj-clic), artisans en ligne en premier. Sans nom : Guilde > Métiers (Ctrl-clic sur une recette : chuchoter l'artisan). |
 | `/wl bg` | Historique de mes premades de BG, stats par joueur, records par BG (victoires les plus rapides). |
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
 | `/wl pvp` | Réglages des cadres PvP. |
@@ -89,7 +93,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl danger` | Alerte danger (monde ouvert) : message + son quand un joueur ennemi JcJ, un monstre « tête de mort » ou un élite rouge approche. |
 | `/wl cc` | Grosse icône au centre de l'écran quand vous êtes sous contrôle (étourdi, peur, silence...), avec le temps restant. |
 | `/wl duel` | Gros compte à rebours pour les duels façon BigWigs (chiffre animé et voix) : 3, 2, 1, « Combat ! », et les 10 secondes pour revenir quand on sort de la zone de duel. |
-| `/wl test` | Teste en même temps tous les modules activés (chronos, duel, cimetière, alertes, cadres de BG) pour les voir et les déplacer. Aussi le bouton « Tout tester » en haut de la fenêtre. Relancer `/wl test` (ou le bouton, devenu « Arrêter le test ») arrête tout ; aussi `/wl test stop`. |
+| `/wl test` | Teste en même temps tous les modules activés (chronos, duel, cimetière, alertes, cadres de BG, suivi d'auras, ready check en groupe, loot council seul) pour les voir et les déplacer. Aussi le bouton « Tout tester » en haut de la fenêtre. Relancer `/wl test` (ou le bouton, devenu « Arrêter le test ») arrête tout ; aussi `/wl test stop`. |
 | `/wl bgmsg` | Derniers messages du champ de bataille, à copier (pour ajouter les textes de drapeau d'un nouveau BG). |
 
 Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarLegendRaidTool.toc`.
