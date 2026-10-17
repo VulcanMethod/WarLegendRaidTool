@@ -56,6 +56,9 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   there are kept in `db.cvars` (put back at login, in the profiles); a change made elsewhere updates them (SetCVar hooks).
 - `ItemLevels.lua` (`/wl ilvl`): from SimpleItemLevel. Marks live on a child frame of each Blizzard item button, kept in a
   weak table (nothing written in Blizzard's tables); it does nothing while SimpleItemLevel itself is loaded.
+- `GuildPositions.lua` (`/wl map`): guild members on the maps. It **sends addon messages to the GUILD** (the user asked for it),
+  with GuildMap's prefix `GuildMapEx1` and fields so both addons see each other: keep that format. Pins through
+  HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc).
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
   must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
 

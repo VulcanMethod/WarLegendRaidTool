@@ -6,8 +6,12 @@
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 ## Notes-frFR: Outils de raid et de guilde WarLegend : groupes, loot council (style RCLootCouncil), loot log, soft-res, note de raid, buffs, checklist conso, présences, qui a pull, ready check, inspect, suivi d'auras, CD de raid, préparation, rerolls, métiers/inactifs/recrutement de guilde. /wl
 ## SavedVariables: WarLegendRaidToolDB
-## OptionalDeps: RaidPresets, EllesmereUI
+## OptionalDeps: RaidPresets, EllesmereUI, Blizzard_MapCanvas, Blizzard_WorldMap
 
+Libs\LibStub.lua
+Libs\CallbackHandler-1.0.lua
+Libs\HereBeDragons-2.0.lua
+Libs\HereBeDragons-Pins-2.0.lua
 Locale.lua
 Core.lua
 Lib.lua
@@ -39,5 +43,6 @@ DuelTimer.lua
 MoveFrames.lua
 InterfaceOptions.lua
 ItemLevels.lua
+GuildPositions.lua
 Settings.lua
 VersionCheck.lua
