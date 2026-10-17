@@ -10,7 +10,7 @@ local PVP_ADDON = "WarLegendRaidTool_PvP"
 local loaded, loadFailed, waitCombat = false, false, false
 
 W.AddFR({
-    ["Battleground frames"] = "Cadres de champ de bataille",
+    ["Battleground frames"] = "Cadres de CdB",
     ["The PvP module is missing or disabled: install the folder WarLegendRaidTool_PvP next to WarLegendRaidTool."] =
         "Le module PvP est absent ou désactivé : installe le dossier WarLegendRaidTool_PvP à côté de WarLegendRaidTool.",
     ["Not in combat: the frames are loaded after the fight."] = "Pas en combat : les cadres seront chargés après le combat.",
@@ -282,10 +282,10 @@ local function BuildSide(f, pvp, side)
     W.Label(f, L("Bar color:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -116)
     W.Cycle(f, 90, { { "class", L("Class") }, { "custom", L("One color") } },
         function() return pvp:GetSideSetting(side, "BarColorMode") end,
-        function(v) pvp:SetSideSetting(side, "BarColorMode", v) end):SetPoint("TOPLEFT", 100, -111)
+        function(v) pvp:SetSideSetting(side, "BarColorMode", v) end):SetPoint("TOPLEFT", 134, -111)
     local swatch = CreateFrame("Button", nil, f, W.BT)
     W.Size(swatch, 22, 18)
-    swatch:SetPoint("TOPLEFT", 196, -113)
+    swatch:SetPoint("TOPLEFT", 230, -113)
     W.Backdrop(swatch, 1, true)
     swatch.color = swatch:CreateTexture(nil, "ARTWORK")
     swatch.color:SetPoint("TOPLEFT", 2, -2)
@@ -305,10 +305,10 @@ local function BuildSide(f, pvp, side)
     end)
     W.Tooltip(swatch, L("Bar color:"), { L("Click: choose the color of every bar of this side (\"One color\").") })
     W.Check(f, L("Name in the class color"), function() return pvp:GetSideSetting(side, "NameClassColor") end,
-        function(v) pvp:SetSideSetting(side, "NameClassColor", v) end):SetPoint("TOPLEFT", 236, -110)
+        function(v) pvp:SetSideSetting(side, "NameClassColor", v) end):SetPoint("TOPLEFT", 270, -110)
     -- the 1 px black frame around each player (by default: as the style)
     W.Check(f, L("Border"), function() return pvp:GetSideSetting(side, "Border") end,
-        function(v) pvp:SetSideSetting(side, "Border", v) end):SetPoint("TOPLEFT", 430, -110)
+        function(v) pvp:SetSideSetting(side, "Border", v) end):SetPoint("TOPLEFT", 460, -110)
 
     W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -142)
     for i, moduleName in ipairs(pvp.ToggleableModules) do
@@ -375,7 +375,7 @@ W.RegisterModule("PvPFrames", "Battleground frames", function(p)
     -- the style is chosen per side, in the Enemies / Allies tabs below
     W.Label(p, L("Style: in the Enemies / Allies tabs below."), "GameFontDisableSmall"):SetPoint("TOPLEFT", 16, -72)
     if not pvp:HasEllesmereUI() then
-        W.Label(p, L("EllesmereUI is not installed: Blizzard style."), "GameFontDisableSmall"):SetPoint("TOPLEFT", 300, -72)
+        W.Label(p, L("EllesmereUI is not installed: Blizzard style."), "GameFontDisableSmall"):SetPoint("TOPLEFT", 340, -72)
     end
 
     local checks = {

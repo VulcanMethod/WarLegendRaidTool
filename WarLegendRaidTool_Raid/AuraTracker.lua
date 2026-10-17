@@ -589,7 +589,7 @@ W.RegisterModule("AuraTracker", L("Aura Tracking"), function(p)
         db.size = math.min(56, (db.size or 32) + 2)
         for _, row in ipairs(rows) do PlaceIcons(row) end
     end):SetPoint("LEFT", smaller, "RIGHT", 6, 0)
-    W.Button(p, L("Reset positions"), 160, 22, function()
+    W.Button(p, L("Reset positions"), 172, 22, function()
         wipe(db.pos)
         for _, row in ipairs(rows) do Anchor(row) end
     end):SetPoint("TOPLEFT", 16, -400)

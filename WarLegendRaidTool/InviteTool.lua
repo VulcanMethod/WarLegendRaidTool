@@ -240,7 +240,7 @@ end
 local MAX_RANKS = 10
 
 W.RegisterModule("InviteTool", "Invite Tool", function(p)
-    W.Title(p, "Invite Tool")
+    W.Title(p, L("Invite Tool"))
     W.Check(p, L("Invite on keyword whisper"), function() return db.enabled end,
         function(v) db.enabled = v; Watch() end):SetPoint("TOPLEFT", 12, -40)
     W.Label(p, L("Keywords (comma separated):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -74)

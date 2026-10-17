@@ -118,7 +118,7 @@ W.On("PLAYER_REGEN_ENABLED", function()
 end)
 
 W.RegisterModule("MarksBar", "Marks Bar", function(p)
-    W.Title(p, "Marks Bar")
+    W.Title(p, L("Marks Bar"))
     W.Check(p, L("Show the bar"), function() return db.enabled end,
         function(v) db.enabled = v; ApplyDisplay() end):SetPoint("TOPLEFT", 12, -40)
     W.Check(p, L("Lock position"), function() return db.locked end,

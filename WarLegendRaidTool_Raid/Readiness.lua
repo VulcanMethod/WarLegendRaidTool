@@ -29,7 +29,7 @@ W.AddFR({
     ["Readiness check from %s: you are ready."] = "Vérification de %s : tu es prêt.",
     ["Level %d"] = "Niveau %d",
     ["Quest %s"] = "Quête %s",
-    ["Enchants"] = "Enchants",
+    ["Enchants"] = "Enchantements",
     ["%d gold"] = "%d po",
     ["Not saved: %s"] = "Pas verrouillé : %s",
     ["%s resistance %d"] = "Résistance %s %d",

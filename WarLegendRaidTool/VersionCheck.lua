@@ -1,6 +1,7 @@
 -- WarLegend RaidTool - Version Check
 -- Broadcasts your version to the raid, warns if a newer one exists, lists who runs what.
 local W = WLRT
+W.AddFR({ ["Version Check"] = "Vérification de version" })
 local L = W.L
 local VER, VERQ = "WLRT_VER", "WLRT_VERQ"
 local known, warned = {}, false
@@ -84,7 +85,7 @@ W.OnRoster(function()
 end)
 
 W.RegisterModule("VersionCheck", "Version", function(p)
-    W.Title(p, "Version Check")
+    W.Title(p, L("Version Check"))
     W.Label(p, L("Your version: ") .. W.version, "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -40)
     W.Button(p, L("Refresh"), 110, 22, function()
         if not W.InGroup() then W.Print(L("Nothing to broadcast: you are not in a party or raid.")) end

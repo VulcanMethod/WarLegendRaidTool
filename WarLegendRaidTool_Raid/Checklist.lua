@@ -11,7 +11,7 @@ W.AddFR({
     ["Have"] = "En sac",
     ["Want"] = "Voulu",
     ["Load defaults for my class"] = "Charger les défauts de ma classe",
-    ["Remind me at every ready check"] = "Me prévenir à chaque ready check",
+    ["Remind me at every ready check"] = "Me prévenir à chaque appel",
     ["Share my list with the raid"] = "Partager ma liste au raid",
     ["Raid check"] = "Vérif. du raid",
     ["Unknown item."] = "Objet inconnu.",

@@ -398,7 +398,7 @@ W.RegisterModule("RaidCooldowns", L("Raid Cooldowns"), function(p)
     W.Button(p, L("Size +"), 80, 22, function()
         db.scale = math.min(2, (db.scale or 1) + 0.1); win:SetScale(db.scale)
     end):SetPoint("TOPLEFT", 258, -296)
-    W.Button(p, L("Reset position"), 150, 22, function()
+    W.Button(p, L("Reset position"), 162, 22, function()
         db.point, db.relPoint, db.x, db.y = nil, nil, nil, nil
         win:ClearAllPoints()
         win:SetPoint("LEFT", UIParent, "LEFT", 20, 120)

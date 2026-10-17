@@ -4,7 +4,7 @@
 -- Cost: nothing until the game says I lost control; a check every 0.2 s only while it lasts.
 local W = WLRT
 W.AddFR({
-    ["Crowd control alert"] = "Alerte de contrôle (CC)",
+    ["Crowd control alert"] = "Alerte de CC",
     ["Show a big icon when I am crowd controlled"] = "Afficher une grosse icône quand je suis sous contrôle",
     ["Roots too"] = "Aussi les immobilisations",
     ["Play a sound"] = "Jouer un son",
@@ -12,12 +12,12 @@ W.AddFR({
     ["Size:"] = "Taille :",
     ["Test"] = "Test",
     ["Reset position"] = "Réinitialiser la position",
-    ["Stunned"] = "Étourdi",
-    ["Feared"] = "Apeuré",
-    ["Silenced"] = "Réduit au silence",
-    ["Rooted"] = "Immobilisé",
-    ["Disarmed"] = "Désarmé",
-    ["Incapacitated"] = "Neutralisé",
+    ["Stunned"] = "Étourdissement",
+    ["Feared"] = "Peur",
+    ["Silenced"] = "Silence",
+    ["Rooted"] = "Immobilisation",
+    ["Disarmed"] = "Désarmement",
+    ["Incapacitated"] = "Stupéfaction",
 })
 local L = W.L
 local db

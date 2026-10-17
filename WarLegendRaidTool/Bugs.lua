@@ -20,7 +20,7 @@ W.AddFR({
     ["No error of the WarLegend addons this session."] = "Aucune erreur des addons WarLegend dans cette session.",
     ["Select all"] = "Tout sélectionner",
     ["Refresh"] = "Actualiser",
-    ["Clear"] = "Vider",
+    ["Clear"] = "Effacer",
     ["A WarLegend error was recorded: /wl bugs to copy it."] = "Une erreur WarLegend a été enregistrée : /wl bugs pour la copier.",
 })
 

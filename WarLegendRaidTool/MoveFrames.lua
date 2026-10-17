@@ -380,7 +380,7 @@ W.RegisterModule("MoveFrames", "Move frames", function(p)
         if not InCombatLockdown() then
             for name in pairs(hooked) do local f = _G[name]; if f then f:SetScale(1) end end
         end
-    end):SetPoint("TOPLEFT", 36, -110)
+    end):SetPoint("TOPLEFT", 36, -120)
 
     W.Check(p, L("Move screen elements (error text, zone text, battleground score...)"), function() return db.elements end,
         function(v) db.elements = v; if v then SetupElements() elseif unlocked then SetUnlocked(true) end end):SetPoint("TOPLEFT", 12, -146)

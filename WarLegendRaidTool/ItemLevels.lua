@@ -23,9 +23,9 @@ W.AddFR({
     ["Bottom right"] = "En bas à droite",
     ["Bottom left"] = "En bas à gauche",
     ["Center"] = "Au centre",
-    ["Poor"] = "Médiocre",
+    ["Poor"] = "Mauvais",
     ["Common"] = "Commun",
-    ["Uncommon"] = "Peu commun",
+    ["Uncommon"] = "Inhabituel",
     ["Rare"] = "Rare",
     ["Epic"] = "Épique",
     ["The SimpleItemLevel addon is loaded: disable it, this module replaces it."] =

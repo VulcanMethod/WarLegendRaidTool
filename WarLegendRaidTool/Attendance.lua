@@ -8,7 +8,7 @@ W.AddFR({
     ["Attendance"] = "Présences",
     ["Snapshot now"] = "Relevé maintenant",
     ["Record on every boss pull"] = "Relever à chaque pull de boss",
-    ["Record on every ready check"] = "Relever à chaque ready check",
+    ["Record on every ready check"] = "Relever à chaque appel",
     ["Guild members only"] = "Membres de la guilde uniquement",
     ["Last %d raids"] = "%d derniers raids",
     ["All raids"] = "Tous les raids",
@@ -22,7 +22,7 @@ W.AddFR({
     ["Nights"] = "Soirées",
     ["Pulls"] = "Pulls",
     ["Late"] = "Retards",
-    ["Left"] = "Partis tôt",
+    ["Left early"] = "Partis tôt",
     ["Bench"] = "Banc",
     ["Kills"] = "Kills",
     ["Bench (names, tonight):"] = "Banc (noms, ce soir) :",
@@ -331,16 +331,16 @@ W.RegisterModule("Attendance", L("Attendance"), function(p)
     W.Check(p, L("Record on every boss pull"), function() return db.onBoss end, function(v) db.onBoss = v end)
         :SetPoint("TOPLEFT", 400, -30)
     W.Check(p, L("Record on every ready check"), function() return db.onReadyCheck end, function(v) db.onReadyCheck = v end)
-        :SetPoint("TOPLEFT", 580, -30)
+        :SetPoint("TOPLEFT", 600, -30)
     W.Check(p, L("Guild members only"), function() return db.guildOnly end, function(v) db.guildOnly = v; AT.Refresh() end)
         :SetPoint("TOPLEFT", 12, -60)
-    W.Label(p, L("Bench (names, tonight):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 200, -66)
+    W.Label(p, L("Bench (names, tonight):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 228, -66)
     local bench = W.EditBox(p, 200, 200)
-    bench:SetPoint("TOPLEFT", 340, -62)
+    bench:SetPoint("TOPLEFT", 360, -62)
     W.Button(p, L("Add to bench"), 120, 22, function() AddBench(bench:GetText()); bench:SetText("") end)
         :SetPoint("LEFT", bench, "RIGHT", 8, 0)
     UI.players = W.Table(p, { { L("Name"), 110 }, { L("Nights"), 50, "CENTER" }, { "%", 42, "CENTER" }, { L("Pulls"), 42, "CENTER" },
-        { L("Late"), 46, "CENTER" }, { L("Left"), 54, "CENTER" }, { L("Bench"), 40, "CENTER" }, { L("Last seen"), 46, "CENTER" } }, 440)
+        { L("Late"), 46, "CENTER" }, { L("Left early"), 62, "CENTER" }, { L("Bench"), 40, "CENTER" }, { L("Last seen"), 46, "CENTER" } }, 440)
     UI.players:SetPoint("TOPLEFT", 10, -96)
     UI.raids = W.Table(p, { { L("Date"), 72 }, { L("Zone"), 110 }, { L("Players"), 46, "CENTER" }, { L("Kills"), 46, "CENTER" } }, 440)
     UI.raids:SetPoint("TOPLEFT", 470, -96)

@@ -10,7 +10,7 @@ W.AddFR({
     ["Offline for at least (days):"] = "Hors ligne depuis au moins (jours) :",
     ["Hide officers"] = "Cacher les officiers",
     ["Level"] = "Niveau",
-    ["Offline"] = "Absent depuis",
+    ["Offline since"] = "Absent depuis",
     ["Public note"] = "Note publique",
     ["%d members"] = "%d membres",
     ["Export list"] = "Exporter la liste",
@@ -342,7 +342,7 @@ local function BuildInactive(p)
         for _, m in ipairs(G.Inactive()) do t[#t + 1] = W.CSV(m.name, m.rank or "", math.floor(m.days)) end
         W.TextPopup(L("Inactive"), table.concat(t, "\n"), { hint = "Ctrl+C" })
     end):SetPoint("TOPRIGHT", -16, -6)
-    UI.inactive = W.Table(p, { { L("Name"), 130 }, { L("Rank"), 110 }, { L("Level"), 50, "CENTER" }, { L("Offline"), 90, "CENTER" },
+    UI.inactive = W.Table(p, { { L("Name"), 130 }, { L("Rank"), 110 }, { L("Level"), 50, "CENTER" }, { L("Offline since"), 90, "CENTER" },
         { L("Public note"), 260 } }, 460)
     UI.inactive:SetPoint("TOPLEFT", 10, -40)
     p:SetScript("OnShow", function() W.RequestGuildRoster(); G.RefreshInactive() end)
@@ -597,7 +597,7 @@ local function BuildRecruit(p)
     W.Button(p, L("Post now"), 130, 22, G.Post):SetPoint("LEFT", chan, "RIGHT", 12, 0)
     W.Check(p, L("Remind me every"), function() return db.remind end, function(v) db.remind = v; StartTick() end):SetPoint("TOPLEFT", 12, -216)
     W.Cycle(p, 80, { { 10, "10 " .. L("min") }, { 15, "15 " .. L("min") }, { 20, "20 " .. L("min") }, { 30, "30 " .. L("min") }, { 60, "60 " .. L("min") } },
-        function() return db.interval end, function(v) db.interval = v end):SetPoint("TOPLEFT", 160, -216)
+        function() return db.interval end, function(v) db.interval = v end):SetPoint("TOPLEFT", 172, -216)
     p:SetScript("OnShow", sync)
 end
 

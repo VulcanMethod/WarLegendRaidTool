@@ -5,7 +5,7 @@
 -- is created when you first enter one, its one-tenth-of-a-second update runs only while it is shown).
 local W = WLRT
 W.AddFR({
-    ["Graveyard timer"] = "Chrono des cimetières",
+    ["Graveyard timer"] = "Chrono cimetière",
     ["Show the graveyard timer in battlegrounds"] = "Afficher le chrono de cimetière en champ de bataille",
     ["Lock the bar"] = "Verrouiller la barre",
     ["Test (fake waves)"] = "Test (fausses vagues)",
@@ -173,7 +173,7 @@ W.RegisterModule("GYTimer", "Graveyard timer", function(p)
     W.Check(p, L("Lock the bar"), function() return db.locked end, function(v) db.locked = v end)
         :SetPoint("TOPLEFT", 12, -96)
     W.Button(p, L("Test (fake waves)"), 170, 22, function() W.slash.gy() end):SetPoint("TOPLEFT", 16, -130)
-    W.Button(p, L("Reset position"), 150, 22, function()
+    W.Button(p, L("Reset position"), 162, 22, function()
         db.point = { "TOP", "TOP", 0, -120 }
         if frame then Place() end
     end):SetPoint("TOPLEFT", 196, -130)

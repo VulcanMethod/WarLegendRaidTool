@@ -8,7 +8,7 @@
 -- Cost: nothing outside battlegrounds and queues; in one, the map is read when the game says it changed.
 local W = WLRT
 W.AddFR({
-    ["Battleground timers"] = "Chronos de champ de bataille",
+    ["Battleground timers"] = "Chronos de CdB",
     ["Base capture timers"] = "Chronos de capture des bases",
     ["Battle start and queue bars"] = "Barres de début de bataille et de file d'attente",
     ["Flag respawn after a capture"] = "Réapparition du drapeau après une capture",

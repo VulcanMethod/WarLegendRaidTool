@@ -13,7 +13,7 @@ W.AddFR({
     ["Trial since"] = "En essai depuis",
     ["Days"] = "Jours",
     ["Raids"] = "Raids",
-    ["Status"] = "Statut",
+    ["Status"] = "État",
     ["To review"] = "À évaluer",
     ["%d day(s) left"] = "%d jour(s) restant(s)",
     ["Choose the trial rank. The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."] =

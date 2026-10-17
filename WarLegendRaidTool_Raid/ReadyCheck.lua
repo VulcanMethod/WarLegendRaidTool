@@ -286,7 +286,7 @@ SlashCmdList["WLRTREADYCHECK"] = function()
 end
 
 W.RegisterModule("ReadyCheck", "Ready Check", function(p)
-    W.Title(p, "Ready Check")
+    W.Title(p, L("Ready Check"))
     W.Check(p, L("Show the check window on every ready check (/rc)"), function() return db.enabled end,
         function(v) db.enabled = v; if not v and frame then frame:Hide() end end):SetPoint("TOPLEFT", 12, -40)
     W.Button(p, L("Start (/rc)"), 110, 22, SlashCmdList["WLRTREADYCHECK"]):SetPoint("TOPLEFT", 16, -72)

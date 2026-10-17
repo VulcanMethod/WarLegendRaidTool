@@ -94,7 +94,7 @@ local function RefreshUI()
 end
 
 local function Build(p)
-    W.Title(p, "Auto Promote")
+    W.Title(p, L("Auto Promote"))
     W.Label(p, L("Add players (separated by comma or space):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -40)
     local box = W.EditBox(p, 260, 400)
     box:SetPoint("TOPLEFT", 20, -58)

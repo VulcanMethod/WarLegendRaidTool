@@ -370,7 +370,7 @@ end
 
 local function Build(p)
     UI.root = p
-    W.Title(p, "Raid Inspect")
+    W.Title(p, L("Raid Inspect"))
     W.Button(p, L("Refresh all"), 130, 24, RefreshAll,
         { L("Inspects everyone again. The scan runs by itself while this tab is open.") }):SetPoint("TOPLEFT", 14, -40)
     UI.status = W.Label(p, "", "GameFontHighlightSmall")

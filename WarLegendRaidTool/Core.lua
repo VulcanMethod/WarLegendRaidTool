@@ -1749,6 +1749,13 @@ function W.BuildMain()
         b.text:SetFont(W.FONT, 11, "")
         b.text:SetPoint("LEFT", 18, 0) -- indented under its section
         b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
+        -- a long label (French, a new module) shrinks to fit, then is cut: it never runs into the content
+        local avail, size = BTN_W - 22, 11
+        while b.text:GetStringWidth() > avail and size > 8 do
+            size = size - 1
+            b.text:SetFont(W.FONT, size, "")
+        end
+        if b.text:GetStringWidth() > avail then b.text:SetWidth(avail); b.text:SetWordWrap(false) end
         W.MenuTextColor(b, m)
         b:SetScript("OnClick", function() W.Select(m.key, sec.key, cat.key) end)
         m.buttons = m.buttons or {}
@@ -2147,7 +2154,7 @@ W.AddFR({
     ["clear all marks"] = "effacer toutes les marques",
     ["list the presets"] = "lister les presets",
     ["create my assist macro"] = "créer ma macro d'assist",
-    ["ready check (leader / assist), else the check window"] = "ready check (chef / assistant), sinon la fenêtre de vérification",
+    ["ready check (leader / assist), else the check window"] = "appel (chef / assistant), sinon la fenêtre de vérification",
     ["check window (ready, durability)"] = "fenêtre de vérification (prêt, durabilité)",
     ["Loot Council (vote | add [item] | test)"] = "Loot Council (vote | add [objet] | test)",
     ["soft-res tab (players whisper \"!sr [item]\")"] = "onglet soft-res (les joueurs chuchotent \"!sr [objet]\")",
@@ -2168,7 +2175,7 @@ W.AddFR({
     ["who can craft it in the guild (name or item link)"] = "qui peut le fabriquer dans la guilde (nom ou lien d'objet)",
     ["switch modules fully off (Settings > Modules)"] = "éteindre complètement des modules (Réglages > Modules)",
     ["move Blizzard windows, screen elements, tooltip, FPS"] = "déplacer les fenêtres Blizzard, des éléments d'écran, l'infobulle, FPS",
-    ["hidden game options (camera, nameplates, combat text) and every CVar"] = "options cachées du jeu (caméra, barres de nom, texte de combat) et toutes les CVars",
+    ["hidden game options (camera, nameplates, combat text) and every CVar"] = "options cachées du jeu (caméra, barres d'info, texte de combat) et toutes les CVars",
     ["item levels on the character sheet, inspect, bags, loot and tooltips"] = "niveaux d'objet sur la fiche, l'inspection, les sacs, le butin et les infobulles",
     ["guild members on the world map and the minimap"] = "les membres de la guilde sur la carte du monde et la minicarte",
     ["export / import all the settings as one text (Settings > Profile)"] = "exporter / importer tous les réglages en un texte (Réglages > Profil)",
