@@ -68,7 +68,8 @@ function power:AttachToPlayerButton(playerButton)
 
 
 	function playerButton.Power:UpdateMinMaxValues(max)
-		if max and issecret(max) then
+		-- a secret value cannot even be tested (if max then ...): ask issecret first
+		if issecret(max) then
 			self:SetMinMaxValues(0, max)
 			self.maxValue = nil
 			return
@@ -81,6 +82,7 @@ function power:AttachToPlayerButton(playerButton)
 
 	function playerButton.Power:CheckForNewPowerColor(powerToken)
 		--self:Debug("CheckForNewPowerColor", powerToken)
+		if issecret(powerToken) then return end -- no compare, no table index with a secret
 
 		if self.powerToken ~= powerToken then
 			local color = PowerBarColor[powerToken]
@@ -104,8 +106,10 @@ function power:AttachToPlayerButton(playerButton)
 	function playerButton.Power:UpdatePower(unitID)
 		--self:Debug("UpdatePower", unitID, powerToken)
 		if unitID then
-			self:UpdateMinMaxValues(UnitPowerMax(unitID))
-			self:SetValue(UnitPower(unitID))
+			-- the maximum can fail (secret value): protected, the bar still gets its value
+			pcall(self.UpdateMinMaxValues, self, UnitPowerMax(unitID))
+			local value = UnitPower(unitID)
+			if issecret(value) or value ~= nil then self:SetValue(value) end
 		else
 			--for testmode
 			self:SetValue(math_random(0, 100)/100)
